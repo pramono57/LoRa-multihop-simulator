@@ -1,0 +1,53 @@
+# LORA SPECIFIC
+{% set PREAMBLE_DURATION_S = 1000/1000 %} # define variable so it can be used below
+{% set Vcc = 3.3 %}
+
+# LORA PHY SPECIFIC
+SF: 7
+CRC: 0
+CR: 1 # code rate [1-4] default 1
+BW: 125 # in kHz
+DE: 0 # Low Data Rate Optimize
+IH: 0 # implicit header
+
+PREAMBLE_DURATION_S: {{ PREAMBLE_DURATION_S }}
+
+# GATEWAY SPECIFIC PARAMS
+BEACON_INTERVAL_S: 600        # period of transmitting a new beacon for routing
+BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
+
+# SENSOR NODE SPECIFIC PARAMS
+MEASURE_INTERVAL_S: 60          # how freq. a measurement is taken by the sensor node
+MEASURE_DURATION_S: 1           # how long takes a measurement
+
+MAX_BUF_SIZE_BYTE: 16
+  # TX/forwarding related
+TX_BACKOFF_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}] # backoff duration after CAD detected when wanting to send
+  # CAD related
+TX_INTENT_BACKOFF_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}] # backoff after forward msg received
+
+MAX_ITER_CAD: 10
+CAD_INTERVAL_RANDOM_S: !!python/tuple [{{ PREAMBLE_DURATION_S/2 }}, {{ PREAMBLE_DURATION_S - (45/1000)}}]
+
+MAX_DELAY_START_PER_NODE_RANDOM_S: 10  # random wait time till node is active (enters the network)
+
+# Power consumption
+POWER_SLEEP_mW: {{ 5.11*Vcc/1000 }}
+POWER_TX_mW: {{ 62.9*Vcc }}
+POWER_RX_mW: {{ 29.8*Vcc }}
+
+
+{% set TIME_CAD_WAKE_S = 5/1000 %}
+{% set TIME_CAD_STABILIZE_S =   30/1000 %}
+{% set TIME_CAD_PERFORM_S =  18.7/1000 %}
+{% set TIME_CAD_PROC_S =  15.2/1000 %}
+
+TIME_CAD_WAKE_S: {{ TIME_CAD_WAKE_S }}
+TIME_CAD_STABILIZE_S:  {{ TIME_CAD_STABILIZE_S }}
+TIME_CAD_PERFORM_S:   {{ TIME_CAD_PERFORM_S }}
+TIME_CAD_PROC_S:   {{ TIME_CAD_PROC_S }}
+TIME_CAD_CYCLE_S: {{ TIME_CAD_WAKE_S+TIME_CAD_STABILIZE_S+TIME_CAD_PERFORM_S+TIME_CAD_PROC_S }}
+
+ENERGY_CAD_CYCLE_mJ: {{ (19*TIME_CAD_WAKE_S+ 3.42*TIME_CAD_STABILIZE_S + 7.64*TIME_CAD_PERFORM_S + 5*TIME_CAD_PROC_S)*Vcc }} # wake + stabilize + perform
+
+POWER_PROC_mW: {{ 0 }}
