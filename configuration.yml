@@ -9,25 +9,31 @@ CR: 1 # code rate [1-4] default 1
 BW: 125 # in kHz
 DE: 0 # Low Data Rate Optimize
 IH: 0 # implicit header
+tp: 2
+sensitivity: -123
 
 PREAMBLE_DURATION_S: {{ PREAMBLE_DURATION_S }}
 
 # GATEWAY SPECIFIC PARAMS
-BEACON_INTERVAL_S: 600        # period of transmitting a new beacon for routing
-BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
+GW_BEACON_INTERVAL_S: 600        # period of transmitting a new beacon for routing
+GW_BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
 
 # SENSOR NODE SPECIFIC PARAMS
 MEASURE_INTERVAL_S: 60          # how freq. a measurement is taken by the sensor node
 MEASURE_DURATION_S: 1           # how long takes a measurement
 
 MAX_BUF_SIZE_BYTE: 16
-  # TX/forwarding related
-TX_BACKOFF_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}] # backoff duration after CAD detected when wanting to send
-  # CAD related
-TX_INTENT_BACKOFF_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}] # backoff after forward msg received
 
-MAX_ITER_CAD: 10
+# timer set when first data in buffer (sense or DL)
+TX_DATA_TIMER_RANDOM: !!python/tuple [50, 60]
+TX_DATA_TIMER_STEP_UP: 10     # update tx-data-timer when a msg has been received
+TX_DATA_TIMER_STEP_DOWN: 0
+
+# timer set when rx-ed beacon
+TX_BEACON_TIMER_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]
 CAD_INTERVAL_RANDOM_S: !!python/tuple [{{ PREAMBLE_DURATION_S/2 }}, {{ PREAMBLE_DURATION_S - (45/1000)}}]
+# wait min TX_BEACON_COLL_AVOIDANCE_RANDOM before sending a data packet after a beacon was forwarded
+TX_BEACON_COLL_AVOIDANCE_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]
 
 MAX_DELAY_START_PER_NODE_RANDOM_S: 10  # random wait time till node is active (enters the network)
 
@@ -35,12 +41,14 @@ MAX_DELAY_START_PER_NODE_RANDOM_S: 10  # random wait time till node is active (e
 POWER_SLEEP_mW: {{ 5.11*Vcc/1000 }}
 POWER_TX_mW: {{ 62.9*Vcc }}
 POWER_RX_mW: {{ 29.8*Vcc }}
+POWER_SENSE_mW: {{ 20*Vcc }} #TODO
 
 
 {% set TIME_CAD_WAKE_S = 5/1000 %}
 {% set TIME_CAD_STABILIZE_S =   30/1000 %}
 {% set TIME_CAD_PERFORM_S =  18.7/1000 %}
 {% set TIME_CAD_PROC_S =  15.2/1000 %}
+{% set TIME_CAD_CYCLE_S = TIME_CAD_WAKE_S+TIME_CAD_STABILIZE_S+TIME_CAD_PERFORM_S+TIME_CAD_PROC_S %}
 
 TIME_CAD_WAKE_S: {{ TIME_CAD_WAKE_S }}
 TIME_CAD_STABILIZE_S:  {{ TIME_CAD_STABILIZE_S }}
@@ -48,6 +56,9 @@ TIME_CAD_PERFORM_S:   {{ TIME_CAD_PERFORM_S }}
 TIME_CAD_PROC_S:   {{ TIME_CAD_PROC_S }}
 TIME_CAD_CYCLE_S: {{ TIME_CAD_WAKE_S+TIME_CAD_STABILIZE_S+TIME_CAD_PERFORM_S+TIME_CAD_PROC_S }}
 
-ENERGY_CAD_CYCLE_mJ: {{ (19*TIME_CAD_WAKE_S+ 3.42*TIME_CAD_STABILIZE_S + 7.64*TIME_CAD_PERFORM_S + 5*TIME_CAD_PROC_S)*Vcc }} # wake + stabilize + perform
+{% set ENERGY_CAD_CYCLE_mJ = (19*TIME_CAD_WAKE_S+ 3.42*TIME_CAD_STABILIZE_S + 7.64*TIME_CAD_PERFORM_S + 5*TIME_CAD_PROC_S)*Vcc %} # wake + stabilize + perform
+ENERGY_CAD_CYCLE_mJ: {{ ENERGY_CAD_CYCLE_mJ }}
 
-POWER_PROC_mW: {{ 0 }}
+POWER_CAD_CYCLE_mW: {{ ENERGY_CAD_CYCLE_mJ/TIME_CAD_CYCLE_S}}
+
+#POWER_PROC_mW: {{ 0 }}
