@@ -24,7 +24,7 @@ simpy_env.process(node1.run())
 simpy_env.process(node2.run())
 simpy_env.process(node3.run())
 
-simpy_env.run(until=25 * 60)
+simpy_env.run(until=10 * 60)
 
 fig, ax = plt.subplots(4, sharex=True, sharey=True)
 node1.plot_states(ax[0], plot_labels=False)

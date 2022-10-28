@@ -54,6 +54,9 @@ class Gateway:
             self.states_time.append(self._env.now)
 
     def run(self):
+        yield self._env.timeout(2*settings.MAX_DELAY_START_PER_NODE_RANDOM_S)
+        print(f"{self._id}\tStarting GW {self._id}")
+
         while True:
             #TODO include CAD before Tx
             self.beacon.id += 1
@@ -198,10 +201,10 @@ class SensorNode:
             yield self._env.process(self.tx(beacon=True))
             self.tx_beacon_timer.reset()
             #
-            # # ensure that TX data is not immediately followed by a Tx beacon
-            # self.tx_data_timer.extend(self.random(settings.TX_BEACON_TIMER_RANDOM))
 
-        if self.tx_data_timer.is_expired() or self.full_buffer():
+        # elif to ensure beacon TX is not directly followed by a data TX
+        # TODO ensure beacon TX does not throttle data TX
+        elif self.tx_data_timer.is_expired() or self.full_buffer():
             yield self._env.process(self.tx())
             self.tx_data_timer.reset()
 
@@ -213,7 +216,6 @@ class SensorNode:
 
             cad_detected = yield self._env.process(self.cad())
 
-            packet_for_us = False
             if cad_detected:
                 packet_for_us = yield self._env.process(self.receiving())
                 self.tx_data_timer.start(restart=True) # restart timer with new back-off

@@ -1,13 +1,16 @@
 import numpy as np
 from config import settings
 
+import random as rnd
+rnd.seed(0)
+
 
 def random(min_max):
-    import random
+
     if type(min_max) is tuple:
-        return random.uniform(*min_max)
+        return rnd.uniform(*min_max)
     else:
-        return random.uniform(0, min_max)
+        return rnd.uniform(0, min_max)
 
 
 def get_rss(n1, n2):
@@ -20,8 +23,11 @@ def distance(p1, p2):
 
 
 def path_loss(d):
-    return 74.85 + 2.75 * 10 * np.log10(d) # currently no random shadowing + np.random.normal(0, 11.25)
+    return 74.85 + 2.75 * 10 * np.log10(d) # currently no random shadowing +
 
+
+def snr(rss):
+    return rss + 116.86714407 # thermal noise for 25°C 500kHz BW
 
 def in_range(n1, n2):
     return get_rss(n1, n2) > settings.sensitivity

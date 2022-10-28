@@ -52,7 +52,7 @@ class TxTimer:
             ValueError("Only Data timer can be stepped up/down")
         new_backoff = self.backoff - settings.TX_DATA_TIMER_STEP_DOWN
         self.backoff = self.backoff_min if new_backoff < self.backoff_min else new_backoff
-        # no need to stepdown the actual running timer
+        # no need to step down the actual running timer
 
     def start(self, restart=True):
         # alias for init backoff
