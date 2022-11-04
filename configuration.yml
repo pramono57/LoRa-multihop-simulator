@@ -19,18 +19,20 @@ GW_BEACON_INTERVAL_S: 600        # period of transmitting a new beacon for routi
 GW_BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
 
 # SENSOR NODE SPECIFIC PARAMS
-MEASURE_INTERVAL_S: 60          # how freq. a measurement is taken by the sensor node
+MEASURE_INTERVAL_S: 60000          # how freq. a measurement is taken by the sensor node
 MEASURE_DURATION_S: 1           # how long takes a measurement
 
 MAX_BUF_SIZE_BYTE: 16
 
+MAX_SEEN_PACKETS: 10
+
 # timer set when first data in buffer (sense or DL)
-TX_DATA_TIMER_RANDOM: !!python/tuple [50, 60]
-TX_DATA_TIMER_STEP_UP: 10     # update tx-data-timer when a msg has been received
-TX_DATA_TIMER_STEP_DOWN: 0
+TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [5000, 6000]
+TX_AGGREGATION_TIMER_STEP_UP: 10     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_STEP_DOWN: 0
 
 # timer set when rx-ed beacon
-TX_BEACON_TIMER_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]
+TX_COLLISION_TIMER_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]
 CAD_INTERVAL_RANDOM_S: !!python/tuple [{{ PREAMBLE_DURATION_S/2 }}, {{ PREAMBLE_DURATION_S - (45/1000)}}]
 # wait min TX_BEACON_COLL_AVOIDANCE_RANDOM before sending a data packet after a beacon was forwarded
 TX_BEACON_COLL_AVOIDANCE_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]

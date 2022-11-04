@@ -10,7 +10,9 @@ from config import settings
 from utils import random
 from Timers import TxTimer, TimerType
 
-from Packets import DataPacket, BeaconPacket
+import collections
+
+from Packets import Message, MessageType
 from copy import copy
 
 
@@ -26,7 +28,7 @@ class Position:
 
 class GatewayState(IntEnum):
     STATE_INIT = auto()
-    STATE_BEACON = auto()
+    STATE_ROUTE_DISCOVERY = auto()
     STATE_RX = auto()
     STATE_PROC = auto()
 
@@ -35,8 +37,8 @@ class Gateway:
     def __init__(self, env: simpy.Environment, _id):
         self._id = _id
         self._env = env
-        self.beacon = BeaconPacket(0, 0)
-        self.packet_in_tx = None
+        self.route_discovery_message = Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], [])
+        self.message_in_tx = None
         self._state = SensorNodeState.STATE_INIT
         self.done_tx = None
         self.position = Position(0, 0)
@@ -59,18 +61,17 @@ class Gateway:
 
         while True:
             #TODO include CAD before Tx
-            self.beacon.id += 1
 
             self.state_change(SensorNodeState.STATE_PREAMBLE_TX)
-            self.packet_in_tx = self.beacon
+            self.message_in_tx = self.route_discovery_message
 
-            packet_time = self.packet_in_tx.time()
-            self.done_tx = self._env.now + settings.PREAMBLE_DURATION_S + packet_time
+            message_time = self.message_in_tx.time()
+            self.done_tx = self._env.now + settings.PREAMBLE_DURATION_S + message_time
 
             yield self._env.timeout(settings.PREAMBLE_DURATION_S)
 
             self.state_change(SensorNodeState.STATE_TX)
-            yield self._env.timeout(packet_time)
+            yield self._env.timeout(message_time)
 
             self.state_change(SensorNodeState.STATE_SLEEP)
             yield self._env.timeout(settings.GW_BEACON_INTERVAL_S)
@@ -133,11 +134,12 @@ class SensorNode:
         self.collisions = []
         self.data_buffer = []
         self.forwarded_mgs_buffer = []
+        self.route_discovery_forward_buffer = None
 
         self.done_tx = 0
         self.states_time = []
         self.states = []
-        self.packet_in_tx = None
+        self.message_in_tx = None
 
         self._id = _id
         self._state = None
@@ -151,8 +153,10 @@ class SensorNode:
         self.best_beacon = None
         self.beacon_seen_id = -1  # holds the highest beacon counter, seen (to ensure no duplicates)
 
-        self.tx_beacon_timer = TxTimer(env, TimerType.BEACON)
-        self.tx_data_timer = TxTimer(env, TimerType.DATA)
+        self.seen_packets = collections.deque(maxlen=settings.MAXMAX_SEEN_PACKETS)
+
+        self.tx_collision_timer = TxTimer(env, TimerType.COLLISION)
+        self.tx_aggregation_timer = TxTimer(env, TimerType.AGGREGATION)
         self.sense_timer = TxTimer(env, TimerType.SENSE)
 
         self.nodes = []  # list containing the other nodes in the network
@@ -189,24 +193,24 @@ class SensorNode:
             self.state_change(SensorNodeState.STATE_SENSING)
             yield self._env.timeout(settings.MEASURE_DURATION_S)
             # schedule timer for transmit
-            self.tx_data_timer.start(restart=False)
+            self.tx_aggregation_timer.start(restart=False)
             self.sense_timer.start()
             self.data_buffer.extend([0, 0])  # populate with 0s for now
 
     def check_transmit(self):
-        # BEACONS are sent separately
+        # Route discovery messages are sent separately
 
-        # if full buffer or one of the two timers is expired
-        if self.tx_beacon_timer.is_expired():
-            yield self._env.process(self.tx(beacon=True))
-            self.tx_beacon_timer.reset()
+        # if route discovery message need to be forwarded (because of collision timer)
+        if self.tx_collision_timer.is_expired():
+            yield self._env.process(self.tx(route_discovery=True))
+            self.tx_collision_timer.reset()
             #
 
         # elif to ensure beacon TX is not directly followed by a data TX
         # TODO ensure beacon TX does not throttle data TX
-        elif self.tx_data_timer.is_expired() or self.full_buffer():
+        elif self.tx_aggregation_timer.is_expired() or self.full_buffer():
             yield self._env.process(self.tx())
-            self.tx_data_timer.reset()
+            self.tx_aggregation_timer.reset()
 
     def periodic_wakeup(self):
         while True:
@@ -218,8 +222,8 @@ class SensorNode:
 
             if cad_detected:
                 packet_for_us = yield self._env.process(self.receiving())
-                self.tx_data_timer.start(restart=True) # restart timer with new back-off
-                self.tx_beacon_timer.start(restart=True)
+
+
             else:
                 yield self._env.process(self.check_transmit())
 
@@ -256,44 +260,56 @@ class SensorNode:
             if active_node is not None:
                 time_tx_done = active_node.done_tx
                 yield self._env.timeout(abs(self._env.now - time_tx_done))
-                rx_packet = active_node.packet_in_tx
+                rx_packet = active_node.message_in_tx
                 print(f"{self._id}\tRx packet from {active_node._id} {rx_packet}")
                 packet_for_us = self.handle_rx_msg(rx_packet)
 
         return packet_for_us
 
-    def tx(self, beacon: bool = False):
+    def tx(self, route_discovery: bool = False):
         # TODO do CAD before, and schedule TX for next time if channel is not free
-        # TODO empty buffers again
-        self.state_change(SensorNodeState.STATE_PREAMBLE_TX)
 
-        if beacon:
-            if self.best_beacon is not None:
-                beacon_fwd = copy(self.best_beacon)
-                beacon_fwd.num_hops += 1
-                beacon_fwd.src = self._id
-                self.packet_in_tx = beacon_fwd
-            else:
-                print("I dont yet have a beacon received")
+        if route_discovery and self.route_discovery_forward_buffer is not None:
+            self.message_in_tx = self.route_discovery_forward_buffer
+        # if route_discovery:
+        #     if self.best_beacon is not None:
+        #         #TODO Guus: Revisit this!
+        #         beacon_fwd = copy(self.best_beacon)
+        #         beacon_fwd.header.hops += 1
+        #         beacon_fwd.header.address = self._id
+        #         self.message_in_tx = beacon_fwd
+        #     else:
+        #         print("I dont yet have a beacon received")
+        #
+        # else:
+        #     # build data packet
+        #     self.message_in_tx = Message(MessageType.TYPE_ROUTED,
+        #                                 0,
+        #                                 0,
+        #                                 self.dst_node,
+        #                                 self._id,
+        #                                 self.data_buffer,
+        #                                 self.forwarded_mgs_buffer)
 
-        else:
-            # build data packet
-            self.packet_in_tx = DataPacket(self._id, self.dst_node, self.forwarded_mgs_buffer, self.data_buffer)
+        if self.message_in_tx is not None:
+            self.state_change(SensorNodeState.STATE_PREAMBLE_TX)
 
-        if self.packet_in_tx is not None:
-            packet_time = self.packet_in_tx.time()
+            packet_time = self.message_in_tx.time()
             self.done_tx = self._env.now + settings.PREAMBLE_DURATION_S + packet_time
 
             yield self._env.timeout(settings.PREAMBLE_DURATION_S)
 
             self.state_change(SensorNodeState.STATE_TX)
-            print(f"{self._id}\t Sending packet with size: {self.packet_in_tx.size()} bytes")
+            print(f"{self._id}\t Sending packet {self.message_in_tx.header.id} with size: {self.message_in_tx.size()} bytes")
 
             yield self._env.timeout(packet_time)
             self.done_tx = None
-            self.packet_in_tx = None
+            self.message_in_tx = None
             self.forwarded_mgs_buffer = []
             self.data_buffer = []
+
+            if route_discovery:
+                self.route_discovery_forward_buffer = None
 
     def cad(self):
         """
@@ -358,6 +374,7 @@ class SensorNode:
         if axis is None:
             plt.show()
 
+
     def full_buffer(self):
         return len(self.data_buffer) > settings.MAX_BUF_SIZE_BYTE
 
@@ -371,35 +388,24 @@ class SensorNode:
     def handle_rx_msg(self, rx_packet):
         packet_for_us = False
         update_beacon = False
-        if rx_packet.is_beacon():
-            packet_for_us = True
-            if self.best_beacon is None:
-                # first beacon we see, hurray
-                update_beacon = True
-                self.beacon_seen_id = rx_packet.id
-            elif rx_packet.id > self.beacon_seen_id:
-                # new beacon!
-                self.beacon_seen_id = rx_packet.id
-                if rx_packet.num_hops < self.best_beacon.num_hops:
-                    update_beacon = True
-                # TODO if same, look at SNR
-            else:
-                pass  # discard msg
+        if rx_packet.header.id in self.seen_packets:
+            print(
+                f"{self._id}\tPacket already processed {rx_packet.header.id}")
+        else:
+            if rx_packet.is_route_discovery():
+                packet_for_us = True
+                self.route_discovery_forward_buffer = copy(rx_packet)
+                self.tx_collision_timer.start(restart=True)
+            elif rx_packet.header.dst == self._id and rx_packet.is_data():
+                packet_for_us = True
+                print(f"{self._id}\tIt's for us to forward")
+                # update tx timer
+                self.tx_aggregation_timer.step_up()
+                self.forwarded_mgs_buffer.append(rx_packet)
+                self.tx_aggregation_timer.start(restart=True)  # restart timer with new back-off
 
-            if update_beacon:
-                self.best_beacon = rx_packet
-                self.shortest_path_dst = self.best_beacon.src
-                self.shortest_path_num_hops = self.best_beacon.num_hops
-                self.tx_beacon_timer.start()
-                print(
-                    f"{self._id}\tUpdating routing, new dst {self.shortest_path_dst} with {self.shortest_path_num_hops} hops")
+            self.seen_packets.append(rx_packet.header.id)
 
-        elif rx_packet.header.dst == self._id and rx_packet.is_data():
-            packet_for_us = True
-            print(f"{self._id}\tIt's for us to forward")
-            # update tx timer
-            self.tx_data_timer.step_up()
-            self.forwarded_mgs_buffer.append(rx_packet)
         return packet_for_us
 
 

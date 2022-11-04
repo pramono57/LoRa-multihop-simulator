@@ -6,8 +6,8 @@ from config import settings
 
 
 class TimerType(Enum):
-    BEACON = auto()
-    DATA = auto()
+    COLLISION = auto()
+    AGGREGATION = auto()
     SENSE = auto()
 
 
@@ -17,14 +17,14 @@ class TxTimer:
         self.timer = None
         self.type = type
 
-        if type is TimerType.BEACON:
-            self.backoff = random(settings.TX_BEACON_TIMER_RANDOM)
-            self.backoff_min = settings.TX_BEACON_TIMER_RANDOM[0]
-            self.backoff_max = settings.TX_BEACON_TIMER_RANDOM[1]
-        elif type is TimerType.DATA:
-            self.backoff = random(settings.TX_DATA_TIMER_RANDOM)
-            self.backoff_max = settings.TX_DATA_TIMER_RANDOM[1]
-            self.backoff_min = settings.TX_DATA_TIMER_RANDOM[0]
+        if type is TimerType.COLLISION:
+            self.backoff = random(settings.TX_COLLISION_TIMER_RANDOM)
+            self.backoff_min = settings.TX_COLLISION_TIMER_RANDOM[0]
+            self.backoff_max = settings.TX_COLLISION_TIMER_RANDOM[1]
+        elif type is TimerType.AGGREGATION:
+            self.backoff = random(settings.TX_AGGREGATION_TIMER_RANDOM)
+            self.backoff_max = settings.TX_AGGREGATION_TIMER_RANDOM[1]
+            self.backoff_min = settings.TX_AGGREGATION_TIMER_RANDOM[0]
         else:
             self.backoff = settings.MEASURE_INTERVAL_S
 
