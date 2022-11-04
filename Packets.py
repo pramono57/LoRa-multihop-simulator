@@ -24,7 +24,7 @@ def time_on_air(num_bytes):
 
 class MessageHeader:
     def __init__(self, msg_type: MessageType, hops, lqi, address):
-        self.id = random.randint(0, 65536)  # 2 byte
+        self.uid = random.randint(0, 65536)  # 2 byte
         self.type = msg_type                # 1 byte
         self.hops = hops                    # 1 byte
         self.cumulative_lqi = lqi           # 2 bytes
@@ -35,6 +35,9 @@ class MessageHeader:
         # msg_id + type + hops + lqi + address = 6
         return 6
 
+    def __str__(self):
+        return f"uid:{self.uid} | type:{self.type} | hops:{self.hops} | " \
+               f"lqi: {self.cumulative_lqi} | address: {self.address}"
 
 class MessagePayloadChunk:
     def __init__(self, src, data):
@@ -45,19 +48,32 @@ class MessagePayloadChunk:
     def size(self):
         return self.len + 2  # + 2 header info bytes
 
+    def __str__(self):
+        data = ":".join("{:02x}".format(c) for c in self.data)
+        return f"(src:{self.src} | data:{data})"
+
 class MessagePayload:
     def __init__(self, src, own_data, forwarded_msgs):
         self.own_data = MessagePayloadChunk(src, own_data)
         self.forwarded_data = []
 
         for f in forwarded_msgs:
-            self.forwarded_data.extend(f.forward_msgs)
-            self.forwarded_data.append(MessagePayloadChunk(f.header.src, f.own_data))
+            self.forwarded_data.extend(f.payload.forwarded_data)
+            self.forwarded_data.append(f.payload.own_data)
     def size(self):
         size = self.own_data.size()
         for p in self.forwarded_data:
             size += p.size()
         return size
+
+    def __str__(self):
+        str = f"own_data:{self.own_data} | forwarded_data:["
+        for f in self.forwarded_data:
+           str = f"{str} {f} |"
+        if len(self.forwarded_data) > 0:
+            return f"{str[:-1]}]"
+        else:
+            return f"{str}]"
 
 
 class Message:
@@ -86,3 +102,6 @@ class Message:
 
     def is_routed(self):
         return self.header.type is MessageType.TYPE_ROUTED
+
+    def __str__(self):
+        return f"{self.header} || {self.payload}"

@@ -37,20 +37,20 @@ class TxTimer:
         step up the running timer and adapt the backoff period
         :return:
         """
-        if self.type is not TimerType.DATA:
+        if self.type is not TimerType.AGGREGATION:
             ValueError("Only Data timer can be stepped up/down")
-        new_backoff = self.backoff + settings.TX_DATA_TIMER_STEP_UP
+        new_backoff = self.backoff + settings.TX_AGGREGATION_TIMER_STEP_UP
         if new_backoff < self.backoff_max:
             self.backoff = new_backoff
-            self.inc_time_by(settings.TX_DATA_TIMER_STEP_UP)
+            self.inc_time_by(settings.TX_AGGREGATION_TIMER_STEP_UP)
         else:
             # we don't increase the timer
             self.backoff = self.backoff_max
 
     def step_down(self):
-        if self.type is not TimerType.DATA:
+        if self.type is not TimerType.AGGREGATION:
             ValueError("Only Data timer can be stepped up/down")
-        new_backoff = self.backoff - settings.TX_DATA_TIMER_STEP_DOWN
+        new_backoff = self.backoff - settings.TX_AGGREGATION_TIMER_STEP_DOWN
         self.backoff = self.backoff_min if new_backoff < self.backoff_min else new_backoff
         # no need to step down the actual running timer
 
