@@ -51,32 +51,32 @@ class Route:
             neighbour["snr"] = snr
             neighbour["cumulative_lqi"] = cumulative_lqi
             neighbour["hops"] = hops
+        self.find_route()
 
     def find_node(self, _uid):
-        if len(self.neighbour_list) > 0:
-            for neighbour in self.neighbour_list:
-                if neighbour["uid"] is _uid:
-                    return neighbour
+        for neighbour in self.neighbour_list:
+            if _uid == neighbour["uid"]:
+                return neighbour
         return None
 
     def find_route(self):
         best_i = 0
         for i, neighbour in enumerate(self.neighbour_list):
-            neighbour.best = False
-            if neighbour.cumulative_lqi < self.neighbours_list[best_i].cumulative_lqi:
+            neighbour["best"] = False
+            if neighbour["cumulative_lqi"] < self.neighbour_list[best_i]["cumulative_lqi"]:
                 # cumulative LQI of this neighbour is better than the previous one
                 # -> save index of this neighbour
                 best_i = i
-            elif neighbour.cumulative_lqi == self.neighbour_list[best_i].cumulative_lqi:
+            elif neighbour["cumulative_lqi"] == self.neighbour_list[best_i]["cumulative_lqi"]:
                 # See if the LQI is equal -> best route is the lowest number of hops
-                if neighbour.hops < self.neighbour_list[best_i].hops:
+                if neighbour["hops"] < self.neighbour_list[best_i]["hops"]:
                     best_i = i
-                elif neighbour.hops == self.neighbour_list[best_i].hops:
+                elif neighbour["hops"] == self.neighbour_list[best_i]["hops"]:
                     # See if the nr of hops is equal -> best route is the lowest snr to neighbour
-                    if neighbour.snr > self.neighbour_list[best_i].snr:
+                    if neighbour["snr"] > self.neighbour_list[best_i]["snr"]:
                         best_i = i
 
-        self.neighbour_list[best_i].best = True
+        self.neighbour_list[best_i]["best"] = True
         return self.neighbour_list[best_i]
 
     def __str__(self):
@@ -203,6 +203,7 @@ class SensorNode:
         self.sense_timer = TxTimer(env, TimerType.SENSE)
 
         self.nodes = []  # list containing the other nodes in the network
+        self.link_table = None
 
         self.position = Position.random(size=100)
         self.best_route = 1  # needs to be populated through routing protocol
@@ -211,8 +212,9 @@ class SensorNode:
 
         self.application_counter = 0
 
-    def add_nodes(self, nodes):
+    def add_meta(self, nodes, link_table):
         self.nodes = nodes
+        self.link_table = link_table
 
     def state_change(self, state_to):
         if state_to is self.state and state_to is not SensorNodeState.STATE_SLEEP:
@@ -297,7 +299,7 @@ class SensorNode:
             else:
                 # if power higher than power_threshold for all tx nodes, this one will succeed
                 power_threshold = 6  # dB
-                powers = [(a, utils.get_rss(a, self)) for a in active_nodes]
+                powers = [(a, self.link_table.get(a, self).rss()) for a in active_nodes]
                 powers.sort(key=lambda tup: tup[1], reverse=True)
                 # only success for the highest power if > power_threshold
                 if powers[0][1] >= powers[1][1] + power_threshold:
@@ -366,7 +368,7 @@ class SensorNode:
         nodes_sending_preamble = self.get_nodes_in_state(SensorNodeState.STATE_PREAMBLE_TX)
         active_nodes = []
         for n in nodes_sending_preamble:
-            if utils.in_range(n, self):
+            if self.link_table.get(self, n).in_range():
                 active_nodes.append(n)
 
         # check after CAD perform, if it was transmitting during the full window
@@ -403,16 +405,15 @@ class SensorNode:
         axis.scatter(self.collisions, [0]*len(self.collisions), edgecolor="green")
         axis.grid()
 
-        if plot_labels:
-
-            states = sorted(self.states, key=lambda tup: tup.value)
-            y = [s.value for s in states]
-            labels = [f"{s.fullname}" for s in states]
-
-            axis.set_yticks(y, labels)
+        # if plot_labels:
+        #
+        #     states = sorted(self.states, key=lambda tup: tup.value)
+        #     y = [s.value for s in states]
+        #     labels = [f"{s.fullname}" for s in states]
+        #
+        #     axis.set_yticks(y, labels)
         if axis is None:
             plt.show()
-
 
     def full_buffer(self):
         return len(self.data_buffer) > settings.MAX_BUF_SIZE_BYTE
@@ -430,7 +431,10 @@ class SensorNode:
         # Check for routing in all received route discovery messages
         if rx_packet.is_route_discovery():
             print(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
-            self.route.update(rx_packet.header.address, 0, rx_packet.header.cumulative_lqi,
+            self.route.update(rx_packet.header.address,
+                              self.link_table.get_from_uid(self.uid,
+                                                           rx_packet.header.address).snr(),
+                              rx_packet.header.cumulative_lqi,
                               rx_packet.header.hops)
             print(f"{self.uid}\r\n{self.route}")
 
@@ -442,7 +446,11 @@ class SensorNode:
             if rx_packet.is_route_discovery():
                 packet_for_us = True
                 self.route_discovery_forward_buffer = rx_packet.copy()
+                # Update new packet that needs to be forwarded
                 self.route_discovery_forward_buffer.header.address = self.uid
+                self.route_discovery_forward_buffer.header.hops += 1
+                self.route_discovery_forward_buffer.header.cumulative_lqi += \
+                    self.link_table.get_from_uid(self.uid, rx_packet.header.address).lqi()
                 self.tx_collision_timer.start(restart=True)
 
             elif rx_packet.is_routed() and rx_packet.header.address == self.uid:
