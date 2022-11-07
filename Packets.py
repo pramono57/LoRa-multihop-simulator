@@ -39,6 +39,7 @@ class MessageHeader:
         return f"uid:{self.uid} | type:{self.type} | hops:{self.hops} | " \
                f"lqi: {self.cumulative_lqi} | address: {self.address}"
 
+
 class MessagePayloadChunk:
     def __init__(self, src, data):
         self.src = src
@@ -52,6 +53,7 @@ class MessagePayloadChunk:
         data = ":".join("{:02x}".format(c) for c in self.data)
         return f"(src:{self.src} | data:{data})"
 
+
 class MessagePayload:
     def __init__(self, src, own_data, forwarded_msgs):
         self.own_data = MessagePayloadChunk(src, own_data)
@@ -60,6 +62,7 @@ class MessagePayload:
         for f in forwarded_msgs:
             self.forwarded_data.extend(f.payload.forwarded_data)
             self.forwarded_data.append(f.payload.own_data)
+
     def size(self):
         size = self.own_data.size()
         for p in self.forwarded_data:
@@ -92,6 +95,12 @@ class Message:
         size += self.header.size()
         size += self.payload.size()
         return size
+
+    def copy(self):
+        cpy = Message(self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,
+                      self.payload.own_data.src, self.payload.own_data.data, self.payload.forwarded_data)
+        cpy.header.uid = self.header.uid
+        return cpy
 
     def time(self):
         # return the time on air

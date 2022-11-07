@@ -15,7 +15,7 @@ sensitivity: -123
 PREAMBLE_DURATION_S: {{ PREAMBLE_DURATION_S }}
 
 # GATEWAY SPECIFIC PARAMS
-GW_BEACON_INTERVAL_S: 600        # period of transmitting a new beacon for routing
+GW_BEACON_INTERVAL_S: 60        # period of transmitting a new beacon for routing
 GW_BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
 
 # SENSOR NODE SPECIFIC PARAMS

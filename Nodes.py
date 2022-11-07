@@ -11,6 +11,7 @@ from utils import random
 from Timers import TxTimer, TimerType
 
 import collections
+from tabulate import tabulate
 
 from Packets import Message, MessageType
 from copy import copy
@@ -33,11 +34,59 @@ class GatewayState(IntEnum):
     STATE_PROC = auto()
 
 
+class Route:
+    def __init__(self):
+        self.neighbour_list = []
+
+    def update(self, uid, snr, cumulative_lqi, hops):
+        neighbour = self.find_node(uid)
+        if neighbour is None:
+            self.neighbour_list.append({'uid': uid,
+                                        'snr': snr,
+                                        'cumulative_lqi': cumulative_lqi,
+                                        'hops': hops,
+                                        'best': False})
+        else:
+            neighbour["uid"] = uid
+            neighbour["snr"] = snr
+            neighbour["cumulative_lqi"] = cumulative_lqi
+            neighbour["hops"] = hops
+
+    def find_node(self, _uid):
+        if len(self.neighbour_list) > 0:
+            for neighbour in self.neighbour_list:
+                if neighbour["uid"] is _uid:
+                    return neighbour
+        return None
+
+    def find_route(self):
+        best_i = 0
+        for i, neighbour in enumerate(self.neighbour_list):
+            neighbour.best = False
+            if neighbour.cumulative_lqi < self.neighbours_list[best_i].cumulative_lqi:
+                # cumulative LQI of this neighbour is better than the previous one
+                # -> save index of this neighbour
+                best_i = i
+            elif neighbour.cumulative_lqi == self.neighbour_list[best_i].cumulative_lqi:
+                # See if the LQI is equal -> best route is the lowest number of hops
+                if neighbour.hops < self.neighbour_list[best_i].hops:
+                    best_i = i
+                elif neighbour.hops == self.neighbour_list[best_i].hops:
+                    # See if the nr of hops is equal -> best route is the lowest snr to neighbour
+                    if neighbour.snr > self.neighbour_list[best_i].snr:
+                        best_i = i
+
+        self.neighbour_list[best_i].best = True
+        return self.neighbour_list[best_i]
+
+    def __str__(self):
+        return tabulate(self.neighbour_list, headers="keys")
+
+
 class Gateway:
     def __init__(self, env: simpy.Environment, _id):
         self.uid = _id
         self.env = env
-        self.route_discovery_message = Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], [])
         self.message_in_tx = None
         self.state = SensorNodeState.STATE_INIT
         self.done_tx = None
@@ -46,10 +95,10 @@ class Gateway:
         self.states = []
 
     def state_change(self, state_to):
-        if self.state is None:
-            print(f"GW\tState change: None->{state_to.fullname}")
-        else:
-            print(f"GW\tState change: {self.state.fullname}->{state_to.fullname}")
+        # if self.state is None:
+        #     print(f"GW\tState change: None->{state_to.fullname}")
+        # else:
+        #     print(f"GW\tState change: {self.state.fullname}->{state_to.fullname}")
         if state_to is not self.state:
             self.state = state_to
             self.states.append(state_to)
@@ -63,7 +112,7 @@ class Gateway:
             #TODO include CAD before Tx
 
             self.state_change(SensorNodeState.STATE_PREAMBLE_TX)
-            self.message_in_tx = self.route_discovery_message
+            self.message_in_tx = Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], [])
 
             message_time = self.message_in_tx.time()
             self.done_tx = self.env.now + settings.PREAMBLE_DURATION_S + message_time
@@ -147,12 +196,6 @@ class SensorNode:
         self.energy_mJ = 0
         self.time_to_sense = None
 
-        self.shortest_path_dst = None
-        self.shortest_path_num_hops = None
-        self.shortest_path_SNR = None
-        self.best_beacon = None
-        self.beacon_seen_id = -1  # holds the highest beacon counter, seen (to ensure no duplicates)
-
         self.seen_packets = collections.deque(maxlen=settings.MAXMAX_SEEN_PACKETS)
 
         self.tx_collision_timer = TxTimer(env, TimerType.COLLISION)
@@ -163,6 +206,8 @@ class SensorNode:
 
         self.position = Position.random(size=100)
         self.best_route = 1  # needs to be populated through routing protocol
+
+        self.route = Route()
 
         self.application_counter = 0
 
@@ -199,7 +244,7 @@ class SensorNode:
             self.tx_aggregation_timer.start(restart=False)
             self.sense_timer.start()
 
-            self.data_buffer.extend(self.application_counter.to_bytes(2, 'big')) 
+            self.data_buffer.extend(self.application_counter.to_bytes(2, 'big'))
             self.application_counter = (self.application_counter + 1) % 65535
 
     def check_transmit(self):
@@ -266,7 +311,7 @@ class SensorNode:
                 time_tx_done = active_node.done_tx
                 yield self.env.timeout(abs(self.env.now - time_tx_done))
                 rx_packet = active_node.message_in_tx
-                print(f"{self.uid}\tRx packet from {active_node.uid} {rx_packet}")
+
                 packet_for_us = self.handle_rx_msg(rx_packet)
 
         return packet_for_us
@@ -295,6 +340,7 @@ class SensorNode:
 
             self.state_change(SensorNodeState.STATE_TX)
             print(f"{self.uid}\t Sending packet {self.message_in_tx.header.uid} with size: {self.message_in_tx.size()} bytes")
+            print(f"{self.uid}\tTx packet to {self.message_in_tx.header.address} {self.message_in_tx}")
 
             yield self.env.timeout(packet_time)
             self.done_tx = None
@@ -381,17 +427,27 @@ class SensorNode:
     def handle_rx_msg(self, rx_packet):
         packet_for_us = False
         update_beacon = False
+        # Check for routing in all received route discovery messages
+        if rx_packet.is_route_discovery():
+            print(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
+            self.route.update(rx_packet.header.address, 0, rx_packet.header.cumulative_lqi,
+                              rx_packet.header.hops)
+            print(f"{self.uid}\r\n{self.route}")
+
         if rx_packet.header.uid in self.seen_packets:
             print(
                 f"{self.uid}\tPacket already processed {rx_packet.header.uid}")
+            return False
         else:
             if rx_packet.is_route_discovery():
                 packet_for_us = True
-                self.route_discovery_forward_buffer = copy(rx_packet)
+                self.route_discovery_forward_buffer = rx_packet.copy()
+                self.route_discovery_forward_buffer.header.address = self.uid
                 self.tx_collision_timer.start(restart=True)
+
             elif rx_packet.is_routed() and rx_packet.header.address == self.uid:
                 packet_for_us = True
-                print(f"{self.uid}\tIt's for us to forward")
+                print(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
                 # update tx timer
                 self.tx_aggregation_timer.step_up()
                 self.forwarded_mgs_buffer.append(rx_packet)
