@@ -9,6 +9,7 @@ class TimerType(Enum):
     COLLISION = auto()
     AGGREGATION = auto()
     SENSE = auto()
+    ROUTE_DISCOVERY = auto()
 
 
 class TxTimer:
@@ -25,9 +26,10 @@ class TxTimer:
             self.backoff = random(settings.TX_AGGREGATION_TIMER_RANDOM)
             self.backoff_max = settings.TX_AGGREGATION_TIMER_RANDOM[1]
             self.backoff_min = settings.TX_AGGREGATION_TIMER_RANDOM[0]
-        else:
+        elif type is TimerType.SENSE:
             self.backoff = settings.MEASURE_INTERVAL_S
-
+        elif type is TimerType.ROUTE_DISCOVERY:
+            self.backoff = settings.ROUTE_DISCOVERY_S
 
     def reset(self):
         self.timer = None
