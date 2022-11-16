@@ -17,6 +17,7 @@ class TxTimer:
         self.env = env
         self.timer = None
         self.type = type
+        self.running = False
 
         if type is TimerType.COLLISION:
             self.backoff = random(settings.TX_COLLISION_TIMER_RANDOM)

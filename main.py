@@ -1,6 +1,6 @@
 from matplotlib import pyplot as plt
 
-from Nodes import Node, NodeType
+from Nodes import Node, NodeType, Position
 from Links import LinkTable
 from config import settings
 import simpy
@@ -12,12 +12,12 @@ simpy_env = simpy.Environment()
 
 nodes = []
 
-gw = Node(simpy_env, 0, NodeType.GATEWAY)
+gw = Node(simpy_env, 0, Position(0,0), NodeType.GATEWAY)
 nodes.append(gw)
 
 number_of_nodes = 10
 for x in range(1, number_of_nodes+1):
-    node = Node(simpy_env, x, NodeType.SENSOR)
+    node = Node(simpy_env, x, Position(0, x*500), NodeType.SENSOR)
     nodes.append(node)
 
 link_table = LinkTable(nodes)
@@ -29,7 +29,7 @@ for node in nodes:
 for node in nodes:
     simpy_env.process(node.run())
 
-simpy_env.run(until=10 * 60)
+simpy_env.run(until=30 * 60)
 
 print("Gateway got these messages:")
 for message in gw.messages_for_me:

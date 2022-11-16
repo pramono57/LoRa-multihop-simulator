@@ -114,7 +114,7 @@ def power_of_state(s: NodeState):
 
 
 class Node:
-    def __init__(self, env: simpy.Environment, _id, _type):
+    def __init__(self, env: simpy.Environment, _id, _position, _type):
         self.type = _type
 
         # Statistics
@@ -125,7 +125,6 @@ class Node:
         self.link_table = None
         self.route = Route()
         self.nodes = []  # list containing the other nodes in the network
-        self.best_route = 0
 
         # Buffers
         self.data_buffer = []
@@ -145,6 +144,7 @@ class Node:
         self.env = env
         self.energy_mJ = 0
         self.time_to_sense = None
+        self.latencies = []
 
         # Timers
         self.tx_collision_timer = TxTimer(env, TimerType.COLLISION)
@@ -155,10 +155,12 @@ class Node:
         self.tx_aggregation_timer = TxTimer(env, TimerType.AGGREGATION)
         self.sense_timer = TxTimer(env, TimerType.SENSE)
 
-        if self.type == NodeType.GATEWAY:
-            self.position = Position(0, 0)
-        else:
-            self.position = Position.random(size=100)
+        self.position = _position
+
+        # if self.type == NodeType.GATEWAY:
+        #     self.position = Position(0, 0)
+        # else:
+        #     self.position = Position.random(size=100)
 
         # Payload
         self.application_counter = 0
@@ -208,7 +210,7 @@ class Node:
         if self.type == NodeType.GATEWAY:
             if self.tx_route_discovery_timer.is_expired():
                 self.route_discovery_forward_buffer = \
-                    Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], [])
+                    Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], self, [])
                 yield self.env.process(self.tx(route_discovery=True))
                 self.tx_route_discovery_timer.reset()
                 #
@@ -251,7 +253,7 @@ class Node:
         """
         packet_for_us = False
         active_node = None
-        print(f"{self.uid}\tChecking for RX packet")
+        # print(f"{self.uid}\tChecking for RX packet")
         self.state_change(NodeState.STATE_RX)
         active_nodes = self.get_nodes_in_state(NodeState.STATE_PREAMBLE_TX)
 
@@ -289,9 +291,10 @@ class Node:
             self.message_in_tx = Message(MessageType.TYPE_ROUTED,
                                          0,
                                          0,
-                                         self.best_route,
+                                         self.route.find_route()["uid"],
                                          self.uid,
                                          self.data_buffer,
+                                         self,
                                          self.forwarded_mgs_buffer)
 
         if self.message_in_tx is not None:
@@ -364,7 +367,7 @@ class Node:
             self.route.update(rx_packet.header.address,
                               self.link_table.get_from_uid(self.uid,
                                                            rx_packet.header.address).snr(),
-                              rx_packet.header.cumulative_lqi,
+                              rx_packet.header.cumulative_lqi + self.link_table.get_from_uid(self.uid, rx_packet.header.address).lqi(),
                               rx_packet.header.hops)
             print(f"{self.uid}\r\n{self.route}")
 
@@ -391,11 +394,19 @@ class Node:
                 if self.type == NodeType.SENSOR:
                     self.tx_aggregation_timer.step_up()
                     self.forwarded_mgs_buffer.append(rx_packet)
-                    self.tx_aggregation_timer.start(restart=True)  # restart timer with new back-off
+                    self.tx_aggregation_timer.start(restart=False)  
+                elif self.type == NodeType.GATEWAY:
+                    if rx_packet.payload.own_data.len > 0:
+                        rx_packet.payload.own_data.src_node.received_at_gateway_cb(rx_packet)
+                    for f in rx_packet.payload.forwarded_data:
+                        f.src_node.received_at_gateway_cb(rx_packet)
 
             self.messages_seen.append(rx_packet.header.uid)
 
         return packet_for_us
+
+    def received_at_gateway_cb(self, rx_message):
+        print("Callback")
 
     def plot_states(self, axis=None, plot_labels=True):
         import matplotlib.pyplot as plt

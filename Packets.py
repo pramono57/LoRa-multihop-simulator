@@ -41,11 +41,15 @@ class MessageHeader:
 
 
 class MessagePayloadChunk:
-    def __init__(self, src, data):
+    def __init__(self, src, data, src_node):
         self.src = src
         self.data = data
         self.len = len(data)
 
+        # Meta data
+        self.sent_at = src_node.env.now
+        self.hops = 0
+        self.src_node = src_node
     def size(self):
         return self.len + 2  # + 2 header info bytes
 
@@ -55,8 +59,8 @@ class MessagePayloadChunk:
 
 
 class MessagePayload:
-    def __init__(self, src, own_data, forwarded_msgs):
-        self.own_data = MessagePayloadChunk(src, own_data)
+    def __init__(self, src, own_data, src_node, forwarded_msgs):
+        self.own_data = MessagePayloadChunk(src, own_data, src_node)
         self.forwarded_data = []
 
         for f in forwarded_msgs:
@@ -86,9 +90,9 @@ class Message:
     [            HEADER             ][ OWN DATA ]  [                       FORWARDED MSGS                      ]
     """
 
-    def __init__(self, msg_type: MessageType, hops, lqi, dst, src, own_data, forwarded_msgs):
+    def __init__(self, msg_type: MessageType, hops, lqi, dst, src, own_data, src_node, forwarded_msgs):
         self.header = MessageHeader(msg_type, hops, lqi, dst)
-        self.payload = MessagePayload(src, own_data, forwarded_msgs)
+        self.payload = MessagePayload(src, own_data, src_node, forwarded_msgs)
 
     def size(self):
         size = 0
@@ -98,7 +102,7 @@ class Message:
 
     def copy(self):
         cpy = Message(self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,
-                      self.payload.own_data.src, self.payload.own_data.data, self.payload.forwarded_data)
+                      self.payload.own_data.src, self.payload.own_data.data, self.payload.own_data.src_node, self.payload.forwarded_data)
         cpy.header.uid = self.header.uid
         return cpy
 
