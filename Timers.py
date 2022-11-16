@@ -17,16 +17,15 @@ class TxTimer:
         self.env = env
         self.timer = None
         self.type = type
-        self.running = False
 
         if type is TimerType.COLLISION:
-            self.backoff = random(settings.TX_COLLISION_TIMER_RANDOM)
-            self.backoff_min = settings.TX_COLLISION_TIMER_RANDOM[0]
-            self.backoff_max = settings.TX_COLLISION_TIMER_RANDOM[1]
+            self.backoff = self.backoff = random((settings.TX_COLLISION_TIMER_NOMINAL - settings.TX_COLLISION_TIMER_RANDOM[0], settings.TX_COLLISION_TIMER_NOMINAL + settings.TX_COLLISION_TIMER_RANDOM[1]))
+            self.backoff_min = None
+            self.backoff_max = None
         elif type is TimerType.AGGREGATION:
-            self.backoff = random(settings.TX_AGGREGATION_TIMER_RANDOM)
-            self.backoff_max = settings.TX_AGGREGATION_TIMER_RANDOM[1]
-            self.backoff_min = settings.TX_AGGREGATION_TIMER_RANDOM[0]
+            self.backoff = random((settings.TX_AGGREGATION_TIMER_NOMINAL - settings.TX_AGGREGATION_TIMER_RANDOM[0], settings.TX_AGGREGATION_TIMER_NOMINAL + settings.TX_AGGREGATION_TIMER_RANDOM[1]))
+            self.backoff_max = settings.TX_AGGREGATION_TIMER_MAX
+            self.backoff_min = settings.TX_AGGREGATION_TIMER_MIN
         elif type is TimerType.SENSE:
             self.backoff = settings.MEASURE_INTERVAL_S
         elif type is TimerType.ROUTE_DISCOVERY:
@@ -34,6 +33,12 @@ class TxTimer:
 
     def reset(self):
         self.timer = None
+
+    def renew_random(self):
+        if type is TimerType.COLLISION:
+            self.backoff = random((settings.TX_COLLISION_TIMER_NOMINAL - settings.TX_COLLISION_TIMER_RANDOM[0], settings.TX_COLLISION_TIMER_NOMINAL + settings.TX_COLLISION_TIMER_RANDOM[1]))
+        elif type is TimerType.AGGREGATION:
+            self.backoff = random((self.backoff - settings.TX_AGGREGATION_TIMER_RANDOM[0], self.backoff + settings.TX_AGGREGATION_TIMER_RANDOM[1]))
 
     def step_up(self):
         """
@@ -60,10 +65,12 @@ class TxTimer:
     def start(self, restart=True):
         # alias for init backoff
         if restart:
+            self.renew_random()
             self.init_backoff()
         else:
             # only start when not yet running
             if self.timer is None:
+                self.renew_random()
                 self.start()
 
 

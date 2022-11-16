@@ -45,6 +45,9 @@ class Route:
     def update(self, uid, snr, cumulative_lqi, hops):
         neighbour = self.find_node(uid)
         if neighbour is None:
+            if len(self.neighbour_list) >= settings.MAX_ROUTE_SIZE:
+                self.neighbour_list.remove(self.find_worst())
+
             self.neighbour_list.append({'uid': uid,
                                         'snr': snr,
                                         'cumulative_lqi': cumulative_lqi,
@@ -63,7 +66,25 @@ class Route:
                 return neighbour
         return None
 
-    def find_route(self):
+    def find_worst(self):
+        worst_i = 0
+        for i, neighbour in enumerate(self.neighbour_list):
+            if neighbour["cumulative_lqi"] > self.neighbour_list[worst_i]["cumulative_lqi"]:
+                # cumulative LQI of this neighbour is worse than the previous one
+                # -> save index of this neighbour
+                worst_i = i
+            elif neighbour["cumulative_lqi"] == self.neighbour_list[worst_i]["cumulative_lqi"]:
+                # See if the LQI is equal -> worst route is the highest number of hops
+                if neighbour["hops"] > self.neighbour_list[worst_i]["hops"]:
+                    worst_i = i
+                elif neighbour["hops"] == self.neighbour_list[worst_i]["hops"]:
+                    # See if the nr of hops is equal -> worst route is the lowest snr to neighbour
+                    if neighbour["snr"] < self.neighbour_list[worst_i]["snr"]:
+                        worst_i = i
+
+        return self.neighbour_list[worst_i]
+
+    def find_best(self):
         best_i = 0
         for i, neighbour in enumerate(self.neighbour_list):
             neighbour["best"] = False
@@ -82,6 +103,9 @@ class Route:
 
         self.neighbour_list[best_i]["best"] = True
         return self.neighbour_list[best_i]
+
+    def find_route(self): 
+        return self.find_best()
 
     def __str__(self):
         return tabulate(self.neighbour_list, headers="keys")
@@ -119,8 +143,15 @@ class Node:
 
         # Statistics
         self.collisions = []
+        self.messages_sent = []
         self.messages_for_me = []
-
+        self.own_payloads_sent = []
+        self.own_payloads_arrived_at_gateway = []
+        self.forwarded_payloads = []
+        self.message_counter_own_data_and_forwarded_data = 0
+        self.message_counter_only_forwarded_data = 0
+        self.message_counter_only_own_data = 0
+        
         # Routing and network
         self.link_table = None
         self.route = Route()
@@ -144,7 +175,6 @@ class Node:
         self.env = env
         self.energy_mJ = 0
         self.time_to_sense = None
-        self.latencies = []
 
         # Timers
         self.tx_collision_timer = TxTimer(env, TimerType.COLLISION)
@@ -287,15 +317,29 @@ class Node:
 
         if route_discovery and self.route_discovery_forward_buffer is not None:
             self.message_in_tx = self.route_discovery_forward_buffer
-        elif not route_discovery and (len(self.data_buffer) > 0 or len(self.forwarded_mgs_buffer) > 0):
+
+        elif not route_discovery and ( len(self.data_buffer) > 0 or len(self.forwarded_mgs_buffer) > 0):
+            # Init message for forwarding
+            hops = 0
+            lqi = 0
+            if len(self.forwarded_mgs_buffer) > 0:
+                hops = self.forwarded_mgs_buffer[0].header.hops
+                lqi = self.forwarded_mgs_buffer[0].header.cumulative_lqi
+
             self.message_in_tx = Message(MessageType.TYPE_ROUTED,
-                                         0,
+                                         hops,
                                          0,
                                          self.route.find_route()["uid"],
                                          self.uid,
                                          self.data_buffer,
                                          self,
                                          self.forwarded_mgs_buffer)
+
+            # Increase counters and adjust lqi if forward
+            if len(self.message_in_tx.payload.forwarded_data) > 0:
+                self.message_in_tx.hop()
+                self.message_in_tx.header.cumulative_lqi += \
+                    self.link_table.get_from_uid(self.uid, self.forwarded_mgs_buffer[0].payload.own_data.src).lqi()
 
         if self.message_in_tx is not None:
             self.state_change(NodeState.STATE_PREAMBLE_TX)
@@ -308,6 +352,22 @@ class Node:
             self.state_change(NodeState.STATE_TX)
             print(f"{self.uid}\t Sending packet {self.message_in_tx.header.uid} with size: {self.message_in_tx.size()} bytes")
             print(f"{self.uid}\tTx packet to {self.message_in_tx.header.address} {self.message_in_tx}")
+
+            # Sent statistics
+            self.messages_sent.append(self.message_in_tx)
+            # Only for routed messages
+            if self.message_in_tx.header.type == MessageType.TYPE_ROUTED:
+                if self.message_in_tx.payload.own_data.len > 0:
+                    self.own_payloads_sent.append(self.message_in_tx.payload.own_data)
+                for pl in self.message_in_tx.payload.forwarded_data:
+                    self.forwarded_payloads.append(pl)
+
+                if self.message_in_tx.payload.own_data.len > 0 and len(self.message_in_tx.payload.forwarded_data) > 0:
+                    self.message_counter_own_data_and_forwarded_data += 1
+                elif self.message_in_tx.payload.own_data.len > 0:
+                    self.message_counter_only_own_data += 1
+                elif len(self.message_in_tx.payload.forwarded_data) > 0:
+                    self.message_counter_only_forwarded_data += 1
 
             yield self.env.timeout(packet_time)
             self.done_tx = None
@@ -381,7 +441,7 @@ class Node:
                 self.route_discovery_forward_buffer = rx_packet.copy()
                 # Update new packet that needs to be forwarded
                 self.route_discovery_forward_buffer.header.address = self.uid
-                self.route_discovery_forward_buffer.header.hops += 1
+                self.route_discovery_forward_buffer.hop()
                 self.route_discovery_forward_buffer.header.cumulative_lqi += \
                     self.link_table.get_from_uid(self.uid, rx_packet.header.address).lqi()
                 self.tx_collision_timer.start(restart=True)
@@ -392,21 +452,19 @@ class Node:
                 # update tx timer
                 self.messages_for_me.append(rx_packet)
                 if self.type == NodeType.SENSOR:
-                    self.tx_aggregation_timer.step_up()
-                    self.forwarded_mgs_buffer.append(rx_packet)
                     self.tx_aggregation_timer.start(restart=False)  
+                    self.tx_aggregation_timer.step_up() # Is only applied for for next start
+                    self.forwarded_mgs_buffer.append(rx_packet)
                 elif self.type == NodeType.GATEWAY:
-                    if rx_packet.payload.own_data.len > 0:
-                        rx_packet.payload.own_data.src_node.received_at_gateway_cb(rx_packet)
-                    for f in rx_packet.payload.forwarded_data:
-                        f.src_node.received_at_gateway_cb(rx_packet)
+                    rx_packet.arrived_at_gateway()
 
             self.messages_seen.append(rx_packet.header.uid)
 
         return packet_for_us
 
-    def received_at_gateway_cb(self, rx_message):
-        print("Callback")
+    def arrived_at_gateway(self, payload): 
+        # Update statistics
+        self.own_payloads_arrived_at_gateway.append(payload)
 
     def plot_states(self, axis=None, plot_labels=True):
         import matplotlib.pyplot as plt

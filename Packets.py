@@ -35,9 +35,12 @@ class MessageHeader:
         # msg_id + type + hops + lqi + address = 6
         return 6
 
+    def hop(self):
+        self.hops += 1
+
     def __str__(self):
         return f"uid:{self.uid} | type:{self.type} | hops:{self.hops} | " \
-               f"lqi: {self.cumulative_lqi} | address: {self.address}"
+               f"lqi: {round(self.cumulative_lqi,2)} | address: {self.address}"
 
 
 class MessagePayloadChunk:
@@ -48,10 +51,19 @@ class MessagePayloadChunk:
 
         # Meta data
         self.sent_at = src_node.env.now
+        self.arrived_at = 0
         self.hops = 0
         self.src_node = src_node
+
     def size(self):
         return self.len + 2  # + 2 header info bytes
+
+    def hop(self):
+        self.hops += 1
+
+    def arrived_at_gateway(self):
+        self.arrived_at = self.src_node.env.now
+        self.src_node.arrived_at_gateway(self)
 
     def __str__(self):
         data = ":".join("{:02x}".format(c) for c in self.data)
@@ -72,6 +84,14 @@ class MessagePayload:
         for p in self.forwarded_data:
             size += p.size()
         return size
+
+    def set_own_data(self, src, own_data, src_node):
+        self.own_data = MessagePayloadChunk(src, own_data, src_node)
+
+    def arrived_at_gateway(self):
+        self.own_data.arrived_at_gateway()
+        for p in self.forwarded_data:
+            p.arrived_at_gateway()
 
     def __str__(self):
         str = f"own_data:{self.own_data} | forwarded_data:["
@@ -100,6 +120,12 @@ class Message:
         size += self.payload.size()
         return size
 
+    def hop(self):
+        self.header.hop()
+        self.payload.own_data.hop()
+        for p in self.payload.forwarded_data:
+            p.hop()
+
     def copy(self):
         cpy = Message(self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,
                       self.payload.own_data.src, self.payload.own_data.data, self.payload.own_data.src_node, self.payload.forwarded_data)
@@ -115,6 +141,9 @@ class Message:
 
     def is_routed(self):
         return self.header.type is MessageType.TYPE_ROUTED
+
+    def arrived_at_gateway(self):
+        self.payload.arrived_at_gateway()
 
     def __str__(self):
         return f"{self.header} || {self.payload}"

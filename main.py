@@ -29,11 +29,24 @@ for node in nodes:
 for node in nodes:
     simpy_env.process(node.run())
 
-simpy_env.run(until=30 * 60)
+simpy_env.run(until=32 * 60)
 
 print("Gateway got these messages:")
 for message in gw.messages_for_me:
     print(message)
+
+print("10 sent these payloads that arrived at gateway: with latencies")
+for pl in nodes[10].own_payloads_arrived_at_gateway:
+    print(pl)
+    latency = pl.arrived_at - pl.sent_at
+    print(latency)
+
+print("8 own data and forwarded:")
+print(nodes[8].message_counter_own_data_and_forwarded_data)
+print("only own data")
+print(nodes[8].message_counter_only_own_data)
+print("only forwarded")
+print(nodes[8].message_counter_only_forwarded_data)
 
 fig, ax = plt.subplots(number_of_nodes+1, sharex=True, sharey=True)
 for i, node in enumerate(nodes):

@@ -32,14 +32,21 @@ MEASURE_DURATION_S: 1           # how long takes a measurement
 MAX_BUF_SIZE_BYTE: 16
 
 MAX_SEEN_PACKETS: 10
+MAX_ROUTE_SIZE: 8
 
 # timer set when first data in buffer (sense or DL)
-TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [{{60*2}}, {{60*3-10}}]
+TX_AGGREGATION_TIMER_NOMINAL: 150
+TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [30, 30]
 TX_AGGREGATION_TIMER_STEP_UP: 10     # update tx-data-timer when a msg has been received
 TX_AGGREGATION_TIMER_STEP_DOWN: 0
+TX_AGGREGATION_TIMER_MIN: 120     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_MAX: 180
 
 # timer set when rx-ed beacon
-TX_COLLISION_TIMER_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]
+TX_COLLISION_TIMER_NOMINAL: {{ 10*PREAMBLE_DURATION_S }}
+TX_COLLISION_TIMER_RANDOM: !!python/tuple [{{ 4*PREAMBLE_DURATION_S }}, {{ 4*PREAMBLE_DURATION_S }}]
+
+
 CAD_INTERVAL_RANDOM_S: !!python/tuple [{{ PREAMBLE_DURATION_S/2 }}, {{ PREAMBLE_DURATION_S - (45/1000)}}]
 # wait min TX_BEACON_COLL_AVOIDANCE_RANDOM before sending a data packet after a beacon was forwarded
 TX_BEACON_COLL_AVOIDANCE_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]
