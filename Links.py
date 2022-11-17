@@ -19,7 +19,7 @@ class LinkTable:
                         self.network.add_node(node1.uid, pos=(node1.position.x, node1.position.y))
                         self.network.add_node(node2.uid, pos=(node2.position.x, node2.position.y))
                         if _link_table[node2.uid].in_range():
-                            w = _link_table[node2.uid].rss()-settings.sensitivity
+                            w = _link_table[node2.uid].rss()-settings.LORA_SENSITIVITY
                             self.network.add_edge(node1.uid, node2.uid, weight = w/4)
             self.link_table[node1.uid] = _link_table
 
@@ -59,32 +59,24 @@ class Link:
         self.node1 = node1
         self.node2 = node2
         self._shadowing = np.random.normal(settings.SHADOWING_MU, settings.SHADOWING_SIGMA)
-        self._rss = None
-        self._distance = None
-#         self._snr = None
-#         self._lqi = None
-        self._pl = None
 
     def rss(self):
-        if self._rss is None:
-            self._rss = settings.tp - self.path_loss()
-        return self._rss
+        return settings.LORA_TRANSMIT_POWER - self.path_loss()
 
     def distance(self):
-        if self._distance is None:
-            self._distance  = np.sqrt(np.abs(self.node1.position.x - self.node2.position.x)**2 + np.abs(self.node1.position.y - self.node2.position.y)**2)
-        return self._distance
+        return np.sqrt(np.abs(self.node1.position.x - self.node2.position.x)**2 + np.abs(self.node1.position.y - self.node2.position.y)**2)
 
     def path_loss(self):
-         if self._pl is None:
-            self._pl =  74.85 + 2.75 * 10 * np.log10(self.distance()) #+ self._shadowing  # shadowing per link
-         return self._pl
+        shadowing = 0
+        if settings.SHADOWING_ENABLED:
+            shadowing = self._shadowing
+        return 74.85 + 2.75 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
 
     def snr(self):
         return self.rss() + 116.86714407  # thermal noise for 25°C 500kHz BW
 
     def in_range(self):
-        return self.rss() > settings.sensitivity
+        return self.rss() > settings.LORA_SENSITIVITY
 
     def lqi(self):
         return settings.SNR_MAX - self.snr()

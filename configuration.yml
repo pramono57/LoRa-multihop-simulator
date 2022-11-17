@@ -5,18 +5,21 @@
 # LORA PHY SPECIFIC
 {% set SF = 7 %}
 {% set BW = 125 %}
-SF: {{ SF }}
-CRC: 0
-CR: 1 # code rate [1-4] default 1
-BW: {{ BW }} # in kHz
-DE: 0 # Low Data Rate Optimize
-IH: 0 # implicit header
-tp: 2
-sensitivity: -123
+LORA_SF: {{ SF }}
+LORA_CRC: 0
+LORA_CODE_RATE: 1 # code rate [1-4] default 1
+LORA_BANDWIDTH: {{ BW }} # in kHz
+LORA_LOW_DATA_RATE_OPTIMIZE: 0 # Low Data Rate Optimize
+LORA_IMPLICIT_HEADER: 0 # implicit header
+LORA_TRANSMIT_POWER: 2
+LORA_SENSITIVITY: -123
+
+
 
 PREAMBLE_DURATION_S: {{ PREAMBLE_DURATION_S }}
 
 # LINK CHARACTERISTICS
+SHADOWING_ENABLED: True
 SHADOWING_MU: 0
 SHADOWING_SIGMA: 11.25
 SNR_MAX: 30

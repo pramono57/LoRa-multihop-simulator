@@ -12,13 +12,13 @@ class MessageType(IntEnum):
 
 
 def time_on_air(num_bytes):
-    t_sym = (2.0 ** settings.SF) / settings.BW
+    t_sym = (2.0 ** settings.LORA_SF) / settings.LORA_BANDWIDTH
     payload_symb_n_b = 8 + max(
         math.ceil(
             (
-                    8.0 * num_bytes - 4.0 * settings.SF + 28 + 16 * settings.CRC - 20 * settings.IH) / (
-                    4.0 * (settings.SF - 2 * settings.DE)))
-        * (settings.CR + 4), 0)
+                    8.0 * num_bytes - 4.0 * settings.LORA_SF + 28 + 16 * settings.LORA_CRC - 20 * settings.LORA_IMPLICIT_HEADER) / (
+                    4.0 * (settings.LORA_SF - 2 * settings.LORA_LOW_DATA_RATE_OPTIMIZE)))
+        * (settings.LORA_CODE_RATE + 4), 0)
     return payload_symb_n_b * t_sym / 1000  # to convert from ms to s
 
 

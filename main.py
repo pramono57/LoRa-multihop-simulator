@@ -9,13 +9,29 @@ simpy_env = simpy.Environment()
 
 nodes = []
 
-nodes.append(Node(simpy_env, 0, Position(0,0), NodeType.GATEWAY))
-number_of_nodes = 10
-for x in range(1, number_of_nodes+1):
-    nodes.append(Node(simpy_env, x, Position((x%2)*10, x*30), NodeType.SENSOR))
+nodes.append(Node(simpy_env, 0, Position(0, 0), NodeType.GATEWAY))
+nodes.append(Node(simpy_env, 1, Position(2, 0), NodeType.SENSOR))
 
 link_table = LinkTable(nodes)
-link_table.plot()
+
+for node in nodes:
+    if type(node) is Node:
+        node.add_meta(nodes, link_table)
+
+while nodes[1].link_table.get_from_uid(0, 1).in_range():
+    nodes[1].position.x += 1
+
+print("connection lost at")
+print(nodes[1].position.x)
+print("with rss")
+print(nodes[1].link_table.get_from_uid(0, 1).rss())
+
+# number_of_nodes = 10
+# for x in range(1, number_of_nodes+1):
+#     nodes.append(Node(simpy_env, x, Position((x%2)*10, x*30), NodeType.SENSOR))
+
+# link_table = LinkTable(nodes)
+# link_table.plot()
 
 # for node in nodes:
 #     if type(node) is Node:
