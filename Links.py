@@ -37,7 +37,7 @@ class Link:
         return settings.tp - self.path_loss()
 
     def distance(self):
-        return np.sqrt(np.abs(self.node1.position.x - self.node2.position.x) + np.abs(self.node1.position.y - self.node2.position.y))
+        return np.sqrt(np.abs(self.node1.position.x - self.node2.position.x)**2 + np.abs(self.node1.position.y - self.node2.position.y)**2)
 
     def path_loss(self):
         return 74.85 + 2.75 * 10 * np.log10(self.distance()) #+ self.shadowing  # shadowing per link
