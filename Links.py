@@ -31,16 +31,27 @@ class Link:
     def __init__(self, node1, node2):
         self.node1 = node1
         self.node2 = node2
-        self.shadowing = np.random.normal(settings.SHADOWING_MU, settings.SHADOWING_SIGMA)
+        self._shadowing = np.random.normal(settings.SHADOWING_MU, settings.SHADOWING_SIGMA)
+        self._rss = None
+        self._distance = None
+#         self._snr = None
+#         self._lqi = None
+        self._pl = None
 
-    def rss(self):
-        return settings.tp - self.path_loss()
+    def rss(self):$
+        if self._rss is None:
+            self._rss = settings.tp - self.path_loss()
+        return self._rss
 
     def distance(self):
-        return np.sqrt(np.abs(self.node1.position.x - self.node2.position.x)**2 + np.abs(self.node1.position.y - self.node2.position.y)**2)
+        if self._distance is None:
+            self._distance  = np.sqrt(np.abs(self.node1.position.x - self.node2.position.x)**2 + np.abs(self.node1.position.y - self.node2.position.y)**2)
+        return self._distance
 
     def path_loss(self):
-        return 74.85 + 2.75 * 10 * np.log10(self.distance()) #+ self.shadowing  # shadowing per link
+         if self._pl is None:
+            self._pl =  74.85 + 2.75 * 10 * np.log10(self.distance()) + self._shadowing  # shadowing per link
+         return self._pl
 
     def snr(self):
         return self.rss() + 116.86714407  # thermal noise for 25°C 500kHz BW
