@@ -1,17 +1,26 @@
 from config import settings
 import utils
 import numpy as np
+import matplotlib
 
+import networkx as nx
 
 class LinkTable:
     def __init__(self, nodes):
+        self.network = nx.Graph();
+
         self.link_table = {}
         for node1 in nodes:
             _link_table = {}
             for node2 in nodes:
                 if node1.uid is not node2.uid:
-                    _link_table[node2.uid] = Link(node1, node2)
-
+                    if node1.uid < node2.uid:
+                        _link_table[node2.uid] = Link(node1, node2)
+                        self.network.add_node(node1.uid, pos=(node1.position.x, node1.position.y))
+                        self.network.add_node(node2.uid, pos=(node2.position.x, node2.position.y))
+                        if _link_table[node2.uid].in_range():
+                            w = _link_table[node2.uid].rss()-settings.sensitivity
+                            self.network.add_edge(node1.uid, node2.uid, weight = w/4)
             self.link_table[node1.uid] = _link_table
 
     def get(self, node1, node2):
@@ -26,6 +35,24 @@ class LinkTable:
 
         return self.link_table.get(node1_uid).get(node2_uid)
 
+    def plot(self):
+        import matplotlib as mpl
+        import matplotlib.pyplot as plt
+
+
+        mpl.rc('image', cmap='Greys')
+        fig, ax = plt.subplots()
+
+        pos = nx.get_node_attributes(self.network,'pos')
+        edges, weights = zip(*nx.get_edge_attributes(self.network, 'weight').items())
+        
+        nx.draw(self.network, pos, with_labels=True, width=weights)
+
+        plt.axis('on')
+        ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
+        ax.axis('equal')
+        plt.show()
+        
 
 class Link:
     def __init__(self, node1, node2):
@@ -38,7 +65,7 @@ class Link:
 #         self._lqi = None
         self._pl = None
 
-    def rss(self):$
+    def rss(self):
         if self._rss is None:
             self._rss = settings.tp - self.path_loss()
         return self._rss
@@ -50,7 +77,7 @@ class Link:
 
     def path_loss(self):
          if self._pl is None:
-            self._pl =  74.85 + 2.75 * 10 * np.log10(self.distance()) + self._shadowing  # shadowing per link
+            self._pl =  74.85 + 2.75 * 10 * np.log10(self.distance()) #+ self._shadowing  # shadowing per link
          return self._pl
 
     def snr(self):

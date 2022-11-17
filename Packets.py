@@ -53,13 +53,15 @@ class MessagePayloadChunk:
         self.sent_at = src_node.env.now
         self.arrived_at = 0
         self.hops = 0
+        self.trace = [src]
         self.src_node = src_node
 
     def size(self):
         return self.len + 2  # + 2 header info bytes
 
-    def hop(self):
+    def hop(self, node):
         self.hops += 1
+        self.trace.append(node.uid)
 
     def arrived_at_gateway(self):
         self.arrived_at = self.src_node.env.now
@@ -67,7 +69,7 @@ class MessagePayloadChunk:
 
     def __str__(self):
         data = ":".join("{:02x}".format(c) for c in self.data)
-        return f"(src:{self.src} | data:{data})"
+        return f"(trace:{self.trace} | data:{data})"
 
 
 class MessagePayload:
@@ -120,11 +122,11 @@ class Message:
         size += self.payload.size()
         return size
 
-    def hop(self):
+    def hop(self, node):
         self.header.hop()
-        self.payload.own_data.hop()
+        #self.payload.own_data.hop(node)
         for p in self.payload.forwarded_data:
-            p.hop()
+            p.hop(node)
 
     def copy(self):
         cpy = Message(self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,

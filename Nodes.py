@@ -24,7 +24,7 @@ class Position:
 
     @classmethod
     def random(cls, size):
-        return Position(*np.random.uniform(0, size, size=2))
+        return Position(*np.random.uniform(-size/2, size/2, size=2))
 
 
 class GatewayState(IntEnum):
@@ -85,24 +85,27 @@ class Route:
         return self.neighbour_list[worst_i]
 
     def find_best(self):
-        best_i = 0
-        for i, neighbour in enumerate(self.neighbour_list):
-            neighbour["best"] = False
-            if neighbour["cumulative_lqi"] < self.neighbour_list[best_i]["cumulative_lqi"]:
-                # cumulative LQI of this neighbour is better than the previous one
-                # -> save index of this neighbour
-                best_i = i
-            elif neighbour["cumulative_lqi"] == self.neighbour_list[best_i]["cumulative_lqi"]:
-                # See if the LQI is equal -> best route is the lowest number of hops
-                if neighbour["hops"] < self.neighbour_list[best_i]["hops"]:
+        if len(self.neighbour_list) > 0:
+            best_i = 0
+            for i, neighbour in enumerate(self.neighbour_list):
+                neighbour["best"] = False
+                if neighbour["cumulative_lqi"] < self.neighbour_list[best_i]["cumulative_lqi"]:
+                    # cumulative LQI of this neighbour is better than the previous one
+                    # -> save index of this neighbour
                     best_i = i
-                elif neighbour["hops"] == self.neighbour_list[best_i]["hops"]:
-                    # See if the nr of hops is equal -> best route is the lowest snr to neighbour
-                    if neighbour["snr"] > self.neighbour_list[best_i]["snr"]:
+                elif neighbour["cumulative_lqi"] == self.neighbour_list[best_i]["cumulative_lqi"]:
+                    # See if the LQI is equal -> best route is the lowest number of hops
+                    if neighbour["hops"] < self.neighbour_list[best_i]["hops"]:
                         best_i = i
+                    elif neighbour["hops"] == self.neighbour_list[best_i]["hops"]:
+                        # See if the nr of hops is equal -> best route is the lowest snr to neighbour
+                        if neighbour["snr"] > self.neighbour_list[best_i]["snr"]:
+                            best_i = i
 
-        self.neighbour_list[best_i]["best"] = True
-        return self.neighbour_list[best_i]
+            self.neighbour_list[best_i]["best"] = True
+            return self.neighbour_list[best_i]
+        else:
+            return None
 
     def find_route(self): 
         return self.find_best()
@@ -326,10 +329,16 @@ class Node:
                 hops = self.forwarded_mgs_buffer[0].header.hops
                 lqi = self.forwarded_mgs_buffer[0].header.cumulative_lqi
 
+            route = self.route.find_route()
+            if route is None:
+                route = 0
+            else:
+                route = route["uid"]
+
             self.message_in_tx = Message(MessageType.TYPE_ROUTED,
                                          hops,
                                          0,
-                                         self.route.find_route()["uid"],
+                                         route,
                                          self.uid,
                                          self.data_buffer,
                                          self,
@@ -337,7 +346,7 @@ class Node:
 
             # Increase counters and adjust lqi if forward
             if len(self.message_in_tx.payload.forwarded_data) > 0:
-                self.message_in_tx.hop()
+                self.message_in_tx.hop(self)
                 self.message_in_tx.header.cumulative_lqi += \
                     self.link_table.get_from_uid(self.uid, self.forwarded_mgs_buffer[0].payload.own_data.src).lqi()
 
@@ -441,7 +450,7 @@ class Node:
                 self.route_discovery_forward_buffer = rx_packet.copy()
                 # Update new packet that needs to be forwarded
                 self.route_discovery_forward_buffer.header.address = self.uid
-                self.route_discovery_forward_buffer.hop()
+                self.route_discovery_forward_buffer.hop(self)
                 self.route_discovery_forward_buffer.header.cumulative_lqi += \
                     self.link_table.get_from_uid(self.uid, rx_packet.header.address).lqi()
                 self.tx_collision_timer.start(restart=True)
