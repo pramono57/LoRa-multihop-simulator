@@ -1,8 +1,9 @@
 from lib.Network import *
 import matplotlib.pyplot as plt
 
-network = Network(shape = "line", size_x = 250, size_y = 0, n = 5)
+network = Network(shape = "matrix", size_x = 250, size_y = 250, n_x = 5, n_y = 1)
 network.plot_network()
+
 network.run(60*60*4)
 print(network.pdr())
 
