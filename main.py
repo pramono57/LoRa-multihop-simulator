@@ -1,30 +1,49 @@
-from matplotlib import pyplot as plt
+from lib.Network import *
+import matplotlib.pyplot as plt
 
-from Nodes import Node, NodeType, Position
-from Links import LinkTable
-from config import settings
-import simpy
+network = Network(shape = "matrix", size_x = 250, size_y = 250, n_x = 5, n_y = 5)
+network.plot_network()
+network.run(60*30)
+print(network.pdr())
 
-simpy_env = simpy.Environment()
+data = {}
+for node in network.nodes:
+	if node.type == NodeType.SENSOR:
+		if node.route != None:
+			hops = node.route.find_best()["hops"]
+			if data.get(hops, None) == None:
+				data[hops] = [node.pdr()]
+			else:
+				data[hops].append(node.pdr())
 
-nodes = []
+data = dict(sorted(data.items()))
 
-nodes.append(Node(simpy_env, 0, Position(0, 0), NodeType.GATEWAY))
-nodes.append(Node(simpy_env, 1, Position(2, 0), NodeType.SENSOR))
+fig = plt.figure()
+labels, pltdata = [*zip(*data.items())]  # 'transpose' items to parallel key, value lists
+plt.boxplot(pltdata)
+plt.xticks(range(1, len(labels) + 1), labels)
+plt.show()
 
-link_table = LinkTable(nodes)
+# simpy_env = simpy.Environment()
 
-for node in nodes:
-    if type(node) is Node:
-        node.add_meta(nodes, link_table)
+# nodes = []
 
-while nodes[1].link_table.get_from_uid(0, 1).in_range():
-    nodes[1].position.x += 1
+# nodes.append(Node(simpy_env, 0, Position(0, 0), NodeType.GATEWAY))
+# nodes.append(Node(simpy_env, 1, Position(2, 0), NodeType.SENSOR))
 
-print("connection lost at")
-print(nodes[1].position.x)
-print("with rss")
-print(nodes[1].link_table.get_from_uid(0, 1).rss())
+# link_table = LinkTable(nodes)
+
+# for node in nodes:
+#     if type(node) is Node:
+#         node.add_meta(nodes, link_table)
+
+# while nodes[1].link_table.get_from_uid(0, 1).in_range():
+#     nodes[1].position.x += 1
+
+# print("connection lost at")
+# print(nodes[1].position.x)
+# print("with rss")
+# print(nodes[1].link_table.get_from_uid(0, 1).rss())
 
 # number_of_nodes = 10
 # for x in range(1, number_of_nodes+1):
@@ -59,10 +78,4 @@ print(nodes[1].link_table.get_from_uid(0, 1).rss())
 # print("only forwarded")
 # print(nodes[8].message_counter_only_forwarded_data)
 
-# fig, ax = plt.subplots(number_of_nodes+1, sharex=True, sharey=True)
-# for i, node in enumerate(nodes):
-#     node.plot_states(ax[i])
-
-# ax[0].set_yticks([0, 1, 2, 3, 4, 5, 6], ["INIT", "ZZZ", "CAD", "RX", "SNS", "P_TX", "TX"])
-# plt.show()
 
