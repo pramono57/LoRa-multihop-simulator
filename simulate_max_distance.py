@@ -1,7 +1,7 @@
 # Simulate max distance between two nodes
 
-from lib.Network import *
-from lib.config import settings
+from multihop.Network import *
+from multihop.config import settings
 
 network = Network(n = 1, shape = "line", size_x = 30, size_y = 0)
 

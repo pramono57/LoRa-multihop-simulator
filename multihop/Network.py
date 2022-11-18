@@ -160,7 +160,7 @@ class Node:
         self.data_buffer = []
         self.forwarded_mgs_buffer = []
         self.route_discovery_forward_buffer = None
-        self.messages_seen = collections.deque(maxlen=settings.MAXMAX_SEEN_PACKETS)
+        self.messages_seen = collections.deque(maxlen=settings.MAX_SEEN_PACKETS)
 
         # State vars
         self.done_tx = 0
