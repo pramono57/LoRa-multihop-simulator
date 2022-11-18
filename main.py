@@ -1,4 +1,4 @@
-from lib.Network import *
+from multihop.Network import *
 import matplotlib.pyplot as plt
 
 network = Network(shape = "matrix", size_x = 250, size_y = 250, n_x = 5, n_y = 5)
