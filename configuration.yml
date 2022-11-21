@@ -38,10 +38,10 @@ MAX_SEEN_PACKETS: 10
 MAX_ROUTE_SIZE: 8
 
 # timer set when first data in buffer (sense or DL)
-TX_AGGREGATION_TIMER_NOMINAL: 1
-TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [1, 1]
-TX_AGGREGATION_TIMER_STEP_UP: 0     # update tx-data-timer when a msg has been received
-TX_AGGREGATION_TIMER_STEP_DOWN: 0
+TX_AGGREGATION_TIMER_NOMINAL: 120
+TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [10, 10]
+TX_AGGREGATION_TIMER_STEP_UP: 10     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_STEP_DOWN: 10
 TX_AGGREGATION_TIMER_MIN: 120     # update tx-data-timer when a msg has been received
 TX_AGGREGATION_TIMER_MAX: 180
 

@@ -56,6 +56,9 @@ class MessagePayloadChunk:
         self.trace = [src]
         self.src_node = src_node
 
+        self.collided = False
+        self.collided_at = None
+
     def size(self):
         return self.len + 2  # + 2 header info bytes
 
@@ -65,7 +68,13 @@ class MessagePayloadChunk:
 
     def arrived_at_gateway(self):
         self.arrived_at = self.src_node.env.now
-        self.src_node.arrived_at_gateway(self)
+        if len(self.data) > 0:
+            self.src_node.arrived_at_gateway(self)
+
+    def handle_collision(self):
+        self.collided_at = self.src_node.env.now
+        self.collided = True
+        self.src_node.collided(self)
 
     def __str__(self):
         data = ":".join("{:02x}".format(c) for c in self.data)
@@ -94,6 +103,11 @@ class MessagePayload:
         self.own_data.arrived_at_gateway()
         for p in self.forwarded_data:
             p.arrived_at_gateway()
+
+    def handle_collision(self):
+        self.own_data.handle_collision()
+        for p in self.forwarded_data:
+            p.handle_collision()
 
     def __str__(self):
         str = f"own_data:{self.own_data} | forwarded_data:["
@@ -146,6 +160,9 @@ class Message:
 
     def arrived_at_gateway(self):
         self.payload.arrived_at_gateway()
+
+    def handle_collision(self):
+        self.payload.handle_collision()
 
     def __str__(self):
         return f"{self.header} || {self.payload}"

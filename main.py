@@ -2,16 +2,17 @@ from multihop.Network import *
 import matplotlib.pyplot as plt
 
 network = Network(shape = "matrix", size_x = 250, size_y = 250, n_x = 5, n_y = 5)
-network.plot_network()
+#network.plot_network()
 network.run(60*30)
+network.plot_states()
 print(network.pdr())
 
 data = {}
 for node in network.nodes:
 	if node.type == NodeType.SENSOR:
-		if node.route != None:
+		if node.route is not None:
 			hops = node.route.find_best()["hops"]
-			if data.get(hops, None) == None:
+			if data.get(hops, None) is None:
 				data[hops] = [node.pdr()]
 			else:
 				data[hops].append(node.pdr())

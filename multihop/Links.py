@@ -5,6 +5,7 @@ import matplotlib
 
 import networkx as nx
 
+
 class LinkTable:
     def __init__(self, nodes):
         self.network = nx.Graph();
@@ -34,6 +35,9 @@ class LinkTable:
             node2_uid = x
 
         return self.link_table.get(node1_uid).get(node2_uid)
+
+    def get_all_pairs_shortest_path(self):
+        return list(nx.all_pairs_shortest_path(self.network))
 
     def plot(self):
         import matplotlib as mpl

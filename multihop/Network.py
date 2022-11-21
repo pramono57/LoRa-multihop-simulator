@@ -12,7 +12,6 @@ from tabulate import tabulate
 import simpy
 
 
-
 class Position:
     def __init__(self, x, y):
         self.x = x
@@ -33,6 +32,7 @@ class GatewayState(IntEnum):
 class NodeType(IntEnum):
     GATEWAY = auto()
     SENSOR = auto()
+
 
 class Route:
     def __init__(self):
@@ -146,10 +146,12 @@ class Node:
         self.messages_for_me = []
         self.own_payloads_sent = []
         self.own_payloads_arrived_at_gateway = []
+        self.own_payloads_collided = []
         self.forwarded_payloads = []
         self.message_counter_own_data_and_forwarded_data = 0
         self.message_counter_only_forwarded_data = 0
         self.message_counter_only_own_data = 0
+        self._pdr = 0
         
         # Routing and network
         self.link_table = None
@@ -183,6 +185,7 @@ class Node:
             self.tx_route_discovery_timer = None
         self.tx_aggregation_timer = TxTimer(env, TimerType.AGGREGATION)
         self.sense_timer = TxTimer(env, TimerType.SENSE)
+        self.sense_until = None
 
         self.position = _position
 
@@ -223,7 +226,8 @@ class Node:
         self.env.process(self.periodic_wakeup())
 
     def check_sensing(self):
-        if self.sense_timer.is_expired():
+        if (self.sense_until is None and self.sense_timer.is_expired()) or \
+                (self.sense_timer.is_expired() and self.env.now < self.sense_until):
             self.state_change(NodeState.STATE_SENSING)
             yield self.env.timeout(settings.MEASURE_DURATION_S)
             # schedule timer for transmit
@@ -423,6 +427,7 @@ class Node:
         return nodes
 
     def handle_collision(self, active_nodes):
+        # Handles detected collision from incoming packets
         for node in active_nodes:
             # All route discovery messages are usefull to us
             if node.message_in_tx.is_route_discovery():
@@ -431,9 +436,13 @@ class Node:
             # Only routed messages, addressed to us are usefull 
             elif node.message_in_tx.is_routed() and node.message_in_tx.header.address == self.uid:
                 print(f"{self.uid}\t Routed collision detected that was addressed to us")
+                node.message_in_tx.handle_collision()
                 self.collisions.append(self.env.now)
         # Put collision tracking in Links?
 
+    def collided(self, pl):
+        # Callback for packets that were sent by me and have collided
+        self.own_payloads_collided.append(pl)
 
     def handle_rx_msg(self, rx_packet):
         packet_for_us = False
@@ -470,7 +479,7 @@ class Node:
                 self.messages_for_me.append(rx_packet)
                 if self.type == NodeType.SENSOR:
                     self.tx_aggregation_timer.start(restart=False)  
-                    self.tx_aggregation_timer.step_up() # Is only applied for for next start
+                    self.tx_aggregation_timer.step_up() # Is only applied for next start
                     self.forwarded_mgs_buffer.append(rx_packet)
                 elif self.type == NodeType.GATEWAY:
                     rx_packet.arrived_at_gateway()
@@ -484,7 +493,8 @@ class Node:
         self.own_payloads_arrived_at_gateway.append(payload)
 
     def pdr(self):
-        return len(self.own_payloads_arrived_at_gateway)/len(self.own_payloads_sent)
+        self.pdr = len(self.own_payloads_arrived_at_gateway)/len(self.own_payloads_sent)
+        return self.pdr
 
     def plot_states(self, axis=None, plot_labels=True):
         import matplotlib.pyplot as plt
@@ -521,6 +531,7 @@ class Node:
         if axis is None:
             plt.show()
 
+
 class Network:
     def __init__(self, **kwargs):
         self.nodes = []
@@ -550,8 +561,9 @@ class Network:
                 n = max(number_of_nodes-1,1)
                 for x in range(1, number_of_nodes+1):
                     self.nodes.append(Node(self.simpy_env, x, Position(-size_x/2+(x-1)*size_x/n, -size_y/2+(x-1)*size_y/n), NodeType.SENSOR))
+
         elif positioning == "matrix":
-            if n_x == None or n_y == None:
+            if n_x is None or n_y is None:
                 print("Specify number of nodes in each direction.")
 
             uid = 1
@@ -566,9 +578,26 @@ class Network:
                 node.add_meta(self.nodes, self.link_table)
 
     def run(self, time):
+        # First get max hop count in total network to establish how long the simulation should be extended
+        paths = self.link_table.get_all_pairs_shortest_path()
+        max_hops = 0
+        for path in paths:
+            hops = len(max(path[1].values(), key=len))
+            if hops > max_hops:
+                max_hops = hops
+
+        # Extend simulation time
+        simulation_time = time + (max_hops * (settings.TX_AGGREGATION_TIMER_MAX
+                                              + settings.TX_AGGREGATION_TIMER_RANDOM[1]
+                                              + settings.TX_COLLISION_TIMER_NOMINAL
+                                              + settings.TX_COLLISION_TIMER_RANDOM[1]))
+
+        # Start all nodes
         for node in self.nodes:
+            node.sense_until = time
             self.simpy_env.process(node.run())
-        self.simpy_env.run(until=time)
+
+        self.simpy_env.run(until=simulation_time)
 
     def plot_network(self):
         self.link_table.plot()
