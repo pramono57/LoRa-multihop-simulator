@@ -1,5 +1,8 @@
 from multihop.Network import *
 import matplotlib.pyplot as plt
+import random
+
+random.seed(5555)
 
 network = Network(shape = "matrix", size_x = 250, size_y = 250, n_x = 5, n_y = 5)
 #network.plot_network()
@@ -23,6 +26,9 @@ fig = plt.figure()
 labels, pltdata = [*zip(*data.items())]  # 'transpose' items to parallel key, value lists
 plt.boxplot(pltdata)
 plt.xticks(range(1, len(labels) + 1), labels)
+plt.show(block=False)
+test = "test"
+
 plt.show()
 
 # simpy_env = simpy.Environment()
