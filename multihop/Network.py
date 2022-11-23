@@ -51,6 +51,16 @@ class Network:
                     self.nodes.append(Node(self.simpy_env, uid, Position(-size_x/2+x*size_x/(n_x-1), -size_y/2+y*size_y/(n_y-1)), NodeType.SENSOR))
                     uid += 1
 
+        elif positioning == "matrix-random":
+            rnd = kwargs.get("size_random")
+            uid = 1
+            for y in range(0, n_y):
+                for x in range(0, n_x):
+                    self.nodes.append(Node(self.simpy_env, uid, Position(-size_x / 2 + x * size_x / (n_x - 1) + np.random.uniform(-rnd/2, rnd),
+                                                                         -size_y / 2 + y * size_y / (n_y - 1) + np.random.uniform(-rnd/2, rnd)),
+                                           NodeType.SENSOR))
+                    uid += 1
+
         self.link_table = LinkTable(self.nodes)
         for node in self.nodes:
             if type(node) is Node:

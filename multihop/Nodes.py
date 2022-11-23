@@ -11,7 +11,7 @@ from aenum import Enum, MultiValue, auto, IntEnum
 import collections
 from tabulate import tabulate
 import simpy
-
+import math
 
 class GatewayState(IntEnum):
     STATE_INIT = auto()
@@ -67,6 +67,7 @@ class Node:
         self.message_counter_only_forwarded_data = 0
         self.message_counter_only_own_data = 0
         self._pdr = 0
+        self._plr = 0
 
         # Routing and network
         self.link_table = None
@@ -160,14 +161,14 @@ class Node:
             if self.tx_route_discovery_timer.is_expired():
                 self.route_discovery_forward_buffer = \
                     Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], self, [])
-                yield self.env.process(self.tx(route_discovery=True))
+                yield self.env.process(self.tx())
                 self.tx_route_discovery_timer.reset()
                 #
 
         elif self.type == NodeType.SENSOR:
             # if route discovery message need to be forwarded (because of collision timer)
             if self.tx_collision_timer.is_expired():
-                yield self.env.process(self.tx(route_discovery=True))
+                yield self.env.process(self.tx())
                 self.tx_collision_timer.reset()
                 #
 
@@ -176,6 +177,12 @@ class Node:
             elif self.tx_aggregation_timer.is_expired() or self.full_buffer():
                 yield self.env.process(self.tx())
                 self.tx_aggregation_timer.reset()
+
+    def postpone_pending_tx(self):
+        # If cad happened before when we should be tx'en, postpone using collision timer
+        if self.tx_collision_timer.is_expired() or self.tx_aggregation_timer.is_expired():
+            self.tx_collision_timer.start(restart=True)  # Postpone using collision timer
+            self.tx_aggregation_timer.reset()  # Reset aggregation timer to stop premature sending
 
     def periodic_wakeup(self):
         while True:
@@ -187,7 +194,7 @@ class Node:
 
             if cad_detected:
                 packet_for_us = yield self.env.process(self.receiving())
-
+                self.postpone_pending_tx()
             else:
                 yield self.env.process(self.check_transmit())
 
@@ -201,39 +208,85 @@ class Node:
         :return:
         """
         packet_for_us = False
-        active_node = None
-
         self.state_change(NodeState.STATE_RX)
 
-        # Wait until next event (can be anything) to check if no collisions
-        # Continue until there are no active nodes left
-        active_node = None
+        loudest_node = None
+        loudest_node_rx_message = None
         rx_message = None
         collision_happened = False
-        active_nodes = self.get_nodes_in_state([NodeState.STATE_PREAMBLE_TX, NodeState.STATE_TX])
-        while len(active_nodes) > 0:
-            collision, active_node = self.check_and_handle_collisions(active_nodes)
-            collision_happened |= collision  # True when collision happens
-            # Only receive first TX message (if not instantly collided)
-            if rx_message is None and active_node is not None:
-                rx_message = active_node.message_in_tx
-            yield self.env.timeout(self.env.peek())
-            active_nodes = self.get_nodes_in_state([NodeState.STATE_PREAMBLE_TX, NodeState.STATE_TX])
+        current_active_nodes = self.get_nodes_in_state([NodeState.STATE_PREAMBLE_TX, NodeState.STATE_TX])
+        while len(current_active_nodes) > 0:  # As long as someone is sending
+
+            # Check how is the loudest
+            current_loudest_node = self.check_and_handle_collisions(current_active_nodes)
+
+            # If new current loudest node
+            # Check if he just started tx'en
+            #   Ok great, this is our new champion
+            # Else, put None
+
+            # If current loudest node is the same, check if he is done tx
+            #   Ok great process rx msg
+            if current_loudest_node is not None:
+                if loudest_node != current_loudest_node:
+                    if current_loudest_node.state == NodeState.STATE_TX and \
+                            math.isclose(current_loudest_node.start_tx, self.env.now, abs_tol=0.01):
+                        loudest_node = current_loudest_node
+                        loudest_node_rx_message = loudest_node.message_in_tx
+                    else:
+                        loudest_node = None
+                elif loudest_node_rx_message is not None and self.env.now >= loudest_node.done_tx - loudest_node_rx_message.time()/10:
+                    rx_message = loudest_node.message_in_tx
+
+            if rx_message is None:
+                # If no message is yet found (thus no nodes yet in TX that have not collided)
+                # Go to next tx cycle
+
+                wait = 0
+                # Look for nodes in tx
+                nodes_in_tx = self.get_nodes_in_state([NodeState.STATE_TX])
+                if len(nodes_in_tx) == 0:
+                    # No nodes yet in tx, wait until one starts transmitting
+                    earliest_transmitting = None
+                    for node in current_active_nodes:
+                        if earliest_transmitting is None or node.start_tx < earliest_transmitting:
+                            earliest_transmitting = node.start_tx
+                    wait = max(0.001, earliest_transmitting - self.env.now)
+                else:
+                    # Someone is in tx, proceed in small steps and preferably until right before tx ends
+
+                    # Standard: until next event with peek(), but at least 1ms wait
+                    wait = max(0.001, self.env.peek() - self.env.now)
+
+                    # Look for nodes that are done transmitting, if so: we need to move in time to just before tx_done
+                    earliest_done = None
+                    for node in nodes_in_tx:
+                        if earliest_done is None or node.done_tx < earliest_done:
+                            toa = node.message_in_tx.time()
+                            earliest_done = node.done_tx - toa/10
+
+                    # Decide which "wait" to take: lowest value, but at least 1ms
+                    wait = max(0.001, min(wait, earliest_done - self.env.now))
+
+                yield self.env.timeout(wait)
+                current_active_nodes = self.get_nodes_in_state([NodeState.STATE_PREAMBLE_TX, NodeState.STATE_TX])
+            else:
+                break
 
         # Collision did not happen during RX
-        if not collision_happened:
-            rx_packet = active_node.message_in_tx
-            packet_for_us = self.handle_rx_msg(rx_packet)
+        if rx_message is not None:
+            packet_for_us = self.handle_rx_msg(rx_message)
 
         return packet_for_us
 
     def tx(self, route_discovery: bool = False):
         # TODO do CAD before, and schedule TX for next time if channel is not free
 
-        if route_discovery and self.route_discovery_forward_buffer is not None:
+        if self.route_discovery_forward_buffer is not None:
+            route_discovery = True
             self.message_in_tx = self.route_discovery_forward_buffer
 
-        elif not route_discovery and (len(self.data_buffer) > 0 or len(self.forwarded_mgs_buffer) > 0):
+        elif len(self.data_buffer) > 0 or len(self.forwarded_mgs_buffer) > 0:
             # Init message for forwarding
             hops = 0
             lqi = 0
@@ -293,6 +346,8 @@ class Node:
                     self.message_counter_only_forwarded_data += 1
 
             yield self.env.timeout(packet_time)
+            self.state_change(NodeState.STATE_SLEEP) # Go back to sleep after transmit
+
             self.done_tx = None
             self.message_in_tx = None
             self.forwarded_mgs_buffer = []
@@ -343,34 +398,33 @@ class Node:
 
     def check_and_handle_collisions(self, active_nodes):
         active_node = active_nodes[0]
-        collision = False
         if len(active_nodes) > 1:
             # If power higher than power_threshold for all tx nodes, this one will succeed
             power_threshold = settings.LORA_POWER_THRESHOLD  # dB
             powers = [(a, self.link_table.get(a, self).rss()) for a in active_nodes]
             powers.sort(key=lambda tup: tup[1], reverse=True)
 
+            # Collisions only when loudest is in TX
             # Only success for the highest power if > power_threshold
-            if powers[0].state == NodeState.STATE_TX and powers[0][1] >= powers[1][1] + power_threshold:
+            if powers[0][0].state == NodeState.STATE_TX and powers[0][1] >= powers[1][1] + power_threshold:
                 # Collision did not happen (due to power threshold)
                 active_node = powers[0][0]
             else:
-                # Collision happened but only for tx nodes and for messages directed at me
+                active_node = None
+                # Collision happened, only save for tx nodes and for messages directed at me
                 for node in active_nodes:
-                    if node.state == NodeState.STATE_TX and self.message_in_tx.is_route_discovery():
+                    if node.state == NodeState.STATE_TX and node.message_in_tx.is_route_discovery() \
+                            and not node.message_in_tx.collided:
                         print(f"{self.uid}\t Route discovery collision detected")
                         self.collisions.append(self.env.now)
-                        active_node = None
-                        collision = True
-                    elif self.message_in_tx.is_routed() and node.state == NodeState.STATE_TX and \
-                            node.message_in_tx.header.address == self.uid:
+                        node.message_in_tx.handle_collision()
+                    elif node.state == NodeState.STATE_TX and node.message_in_tx.is_routed() and \
+                            node.message_in_tx.header.address == self.uid and not node.message_in_tx.collided:
                         print(f"{self.uid}\t Routed collision detected that was addressed to us")
                         node.message_in_tx.handle_collision()
                         self.collisions.append(self.env.now)
-                        active_node = None
-                        collision = True
 
-        return collision, active_node
+        return active_node
 
     def collided(self, pl):
         # Callback for packets that were sent by me and have collided
@@ -426,9 +480,20 @@ class Node:
         self.own_payloads_arrived_at_gateway.append(payload)
 
     def pdr(self):
-        self.pdr = len(self.own_payloads_arrived_at_gateway) / len(self.own_payloads_sent)
-        return self.pdr
+        self._pdr = len(self.own_payloads_arrived_at_gateway) / len(self.own_payloads_sent)
+        return self._pdr
 
+    def plr(self):
+        self._plr = len(self.own_payloads_collided) / len(self.own_payloads_sent)
+        return self._plr
+
+    def aggregation_efficiency(self):
+        only_own_payload_sent = 0
+        for message in self.messages_sent:
+            if len(message.payload.forwarded_data) == 0:
+                only_own_payload_sent += 1
+        return 1-only_own_payload_sent/len(self.messages_sent)
+    
     def plot_states(self, axis=None, plot_labels=True):
         import matplotlib.pyplot as plt
 

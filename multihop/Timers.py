@@ -36,9 +36,11 @@ class TxTimer:
 
     def renew_random(self):
         if type is TimerType.COLLISION:
-            self.backoff = random((settings.TX_COLLISION_TIMER_NOMINAL - settings.TX_COLLISION_TIMER_RANDOM[0], settings.TX_COLLISION_TIMER_NOMINAL + settings.TX_COLLISION_TIMER_RANDOM[1]))
+            self.backoff = random((settings.TX_COLLISION_TIMER_NOMINAL - settings.TX_COLLISION_TIMER_RANDOM[0],
+                                   settings.TX_COLLISION_TIMER_NOMINAL + settings.TX_COLLISION_TIMER_RANDOM[1]))
         elif type is TimerType.AGGREGATION:
-            self.backoff = random((self.backoff - settings.TX_AGGREGATION_TIMER_RANDOM[0], self.backoff + settings.TX_AGGREGATION_TIMER_RANDOM[1]))
+            self.backoff = random((self.backoff - settings.TX_AGGREGATION_TIMER_RANDOM[0],
+                                   self.backoff + settings.TX_AGGREGATION_TIMER_RANDOM[1]))
 
     def step_up(self):
         """

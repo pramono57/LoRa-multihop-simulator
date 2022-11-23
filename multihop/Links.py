@@ -55,7 +55,7 @@ class LinkTable:
         plt.axis('on')
         ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
         ax.axis('equal')
-        plt.show()
+        plt.show(block=False)
         
 
 class Link:

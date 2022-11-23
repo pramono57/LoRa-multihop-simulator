@@ -88,7 +88,8 @@ class MessagePayload:
 
         for f in forwarded_msgs:
             self.forwarded_data.extend(f.payload.forwarded_data)
-            self.forwarded_data.append(f.payload.own_data)
+            if f.payload.own_data.len > 0:
+                self.forwarded_data.append(f.payload.own_data)
 
     def size(self):
         size = self.own_data.size()
@@ -100,12 +101,14 @@ class MessagePayload:
         self.own_data = MessagePayloadChunk(src, own_data, src_node)
 
     def arrived_at_gateway(self):
-        self.own_data.arrived_at_gateway()
+        if self.own_data.len > 0:
+            self.own_data.arrived_at_gateway()
         for p in self.forwarded_data:
             p.arrived_at_gateway()
 
     def handle_collision(self):
-        self.own_data.handle_collision()
+        if self.own_data.len > 0:
+            self.own_data.handle_collision()
         for p in self.forwarded_data:
             p.handle_collision()
 
@@ -130,6 +133,8 @@ class Message:
         self.header = MessageHeader(msg_type, hops, lqi, dst)
         self.payload = MessagePayload(src, own_data, src_node, forwarded_msgs)
 
+        # Meta
+        self.collided = False
     def size(self):
         size = 0
         size += self.header.size()
@@ -162,6 +167,7 @@ class Message:
         self.payload.arrived_at_gateway()
 
     def handle_collision(self):
+        self.collided = True
         self.payload.handle_collision()
 
     def __str__(self):
