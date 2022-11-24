@@ -43,7 +43,14 @@ class Network:
         if rnd is None:
             rnd = 0
 
-        self.nodes.append(Node(self.simpy_env, 0, Position(0, 0), NodeType.GATEWAY))
+        g_x = kwargs.get('g_x', None)
+        g_y = kwargs.get('g_y', None)
+        if g_x is None:
+            g_x = 0
+        if g_y is None:
+            g_y = 0
+
+        self.nodes.append(Node(self.simpy_env, 0, Position(g_x, g_y), NodeType.GATEWAY))
 
         if positioning == "random":
             for x in range(1, n+1):
