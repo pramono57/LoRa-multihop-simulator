@@ -1,20 +1,28 @@
 from multihop.Network import *
 import matplotlib.pyplot as plt
 import random
+import pandas as pd
+
+from multihop.config import settings
 
 random.seed(5555)
 np.random.seed(19680801)
 
-network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
-network.run(60*30)
-network.plot_network()
-network.plot_states()
-print(network.pdr())
+setting = "MEASURE_INTERVAL_S"
+values = range(1*60, 60*60, 120)
 
-network.plot_hops_statistic("pdr")
-network.plot_hops_statistic("plr")
-network.plot_hops_statistic("aggregation_efficiency")
-network.plot_hops_statistic("energy")
+network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
+
+for value in values:
+    settings.update({setting: value})
+
+    network.run(60*30)
+
+    # Todo: process data into pandas to create fancy graphs
+    network.hops_statistic("pdr")
+    network.hops_statistic("plr")
+    network.hops_statistic("aggregation_efficiency")
+    network.hops_statistic("energy")
 
 test = "test"
 

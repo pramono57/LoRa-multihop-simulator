@@ -138,9 +138,7 @@ class Network:
         ax[0].set_yticks([0, 1, 2, 3, 4, 5, 6], ["INIT", "ZZZ", "CAD", "RX", "SNS", "P_TX", "TX"])
         plt.show(block=False)
 
-    def plot_hops_statistic(self, stat):
-        import matplotlib.pyplot as plt
-
+    def hops_statistic(self, stat):
         method = methodcaller(stat)
 
         data = {}
@@ -154,6 +152,13 @@ class Network:
                         data[hops].append(method(node))
 
         data = dict(sorted(data.items()))
+
+        return data
+
+    def plot_hops_statistic(self, stat):
+        import matplotlib.pyplot as plt
+
+        data = self.hops_statistic(stat)
 
         fig = plt.figure()
         labels, pltdata = [*zip(*data.items())]  # 'transpose' items to parallel key, value lists
