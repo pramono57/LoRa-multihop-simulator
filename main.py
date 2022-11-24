@@ -5,43 +5,17 @@ import random
 random.seed(5555)
 np.random.seed(19680801)
 
-network = Network(shape="matrix-random", size_x=240, size_y=240, n_x=6, n_y=6, size_random=10)
+network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
+network.plot_network()
+
 network.run(60*30)
 network.plot_network()
 network.plot_states()
 print(network.pdr())
 
-data_pdr = {}
-data_plr = {}
-data_aggregation_efficiency = {}
-
-for node in network.nodes:
-	if node.type == NodeType.SENSOR:
-		if node.route is not None:
-			hops = node.route.find_best()["hops"]
-			if data_pdr.get(hops, None) is None:
-				data_pdr[hops] = [node.pdr()]
-				data_plr[hops] = [node.plr()]
-				data_aggregation_efficiency[hops] = [node.aggregation_efficiency()]
-			else:
-				data_pdr[hops].append(node.pdr())
-				data_plr[hops].append(node.plr())
-				data_aggregation_efficiency[hops].append(node.aggregation_efficiency())
-
-data_pdr = dict(sorted(data_pdr.items()))
-data_plr = dict(sorted(data_plr.items()))
-
-fig = plt.figure()
-labels, pltdata_pdr = [*zip(*data_pdr.items())]  # 'transpose' items to parallel key, value lists
-plt.boxplot(pltdata_pdr)
-plt.xticks(range(1, len(labels) + 1), labels)
-plt.show(block=False)
-
-fig = plt.figure()
-labels, pltdata_plr = [*zip(*data_plr.items())]  # 'transpose' items to parallel key, value lists
-plt.boxplot(pltdata_plr)
-plt.xticks(range(1, len(labels) + 1), labels)
-plt.show(block=False)
+network.plot_hops_statistic("pdr")
+network.plot_hops_statistic("plr")
+network.plot_hops_statistic("aggregation_efficiency")
 
 test = "test"
 

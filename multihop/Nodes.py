@@ -493,7 +493,7 @@ class Node:
             if len(message.payload.forwarded_data) == 0:
                 only_own_payload_sent += 1
         return 1-only_own_payload_sent/len(self.messages_sent)
-    
+
     def plot_states(self, axis=None, plot_labels=True):
         import matplotlib.pyplot as plt
 
