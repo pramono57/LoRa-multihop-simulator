@@ -126,6 +126,9 @@ class Node:
         # else:
         #     print(f"{self.uid}\tState change: {self.state.fullname}->{state_to.fullname}")
         if state_to is not self.state:
+            if len(self.states_time) > 0:
+                self.energy_mJ += (self.env.now - self.states_time[-1]) * power_of_state(self.state)
+
             self.state = state_to
             self.states.append(state_to)
             self.states_time.append(self.env.now)
@@ -493,6 +496,9 @@ class Node:
             if len(message.payload.forwarded_data) == 0:
                 only_own_payload_sent += 1
         return 1-only_own_payload_sent/len(self.messages_sent)
+
+    def energy(self):
+        return self.energy_mJ
 
     def plot_states(self, axis=None, plot_labels=True):
         import matplotlib.pyplot as plt
