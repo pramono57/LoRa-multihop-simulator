@@ -18,64 +18,110 @@ class Network:
         self.simpy_env = simpy.Environment()
         self.link_table = None
 
-        n_x = None
-        n_y = None
-        n = None
-
-        positioning = kwargs.get('shape', None)
-        size_x = kwargs.get('size_x', None)
-        size_y = kwargs.get('size_y', None)
-
-        density = kwargs.get('density', None)  # Density: how many nodes per km2
-        if density is not None:
-            n_x = round(math.sqrt(density)/1000*size_x)
-            n_y = round(math.sqrt(density) / 1000 * size_y)
-
+        # Copy network
+        nw = kwargs.get("network", None)
+        if nw is not None:
+            for node in nw.nodes:
+                self.nodes.append(Node(self.simpy_env,
+                                       node.uid,
+                                       Position(node.position.x, node.position.y),
+                                       node.type))
         else:
-            n_x = kwargs.get('n_x', None)
-            n_y = kwargs.get('n_y', None)
-            if n_x is None or n_y is None:
-                n = kwargs.get('n', None)
+            n_x = None
+            n_y = None
+            n = None
+
+            positioning = kwargs.get('shape', None)
+            size_x = kwargs.get('size_x', None)
+            size_y = kwargs.get('size_y', None)
+
+            density = kwargs.get('density', None)  # Density: how many nodes per km2
+            if density is not None:
+                n_x = round(math.sqrt(density)/1000*size_x)
+                n_y = round(math.sqrt(density) / 1000 * size_y)
+
             else:
-                number_of_nodes = n_x * n_y
+                n_x = kwargs.get('n_x', None)
+                n_y = kwargs.get('n_y', None)
+                if n_x is None or n_y is None:
+                    n = kwargs.get('n', None)
+                else:
+                    number_of_nodes = n_x * n_y
 
-        rnd = kwargs.get("size_random")
-        if rnd is None:
-            rnd = 0
+            rnd = kwargs.get("size_random")
+            if rnd is None:
+                rnd = 0
 
-        g_x = kwargs.get('g_x', None)
-        g_y = kwargs.get('g_y', None)
-        if g_x is None:
-            g_x = 0
-        if g_y is None:
-            g_y = 0
+            g_x = kwargs.get('g_x', None)
+            g_y = kwargs.get('g_y', None)
+            if g_x is None:
+                g_x = 0
+            if g_y is None:
+                g_y = 0
 
-        self.nodes.append(Node(self.simpy_env, 0, Position(g_x, g_y), NodeType.GATEWAY))
+            self.nodes.append(Node(self.simpy_env, 0, Position(g_x, g_y), NodeType.GATEWAY))
 
-        if positioning == "random":
-            for x in range(1, n+1):
-                self.nodes.append(Node(self.simpy_env, x, Position(*np.random.uniform(-size_x/2, size_y/2, size=2)), NodeType.SENSOR))
-
-        elif positioning == "line":
-            if n == 1:
-                self.nodes.append(Node(self.simpy_env, 1, Position(size_x, size_y), NodeType.SENSOR))
-            else:
+            if positioning == "random":
                 for x in range(1, n+1):
-                    self.nodes.append(Node(self.simpy_env, x, Position(-size_x/2+(x-1)*size_x/n, -size_y/2+(x-1)*size_y/n), NodeType.SENSOR))
+                    self.nodes.append(Node(self.simpy_env, x, Position(*np.random.uniform(-size_x/2, size_y/2, size=2)), NodeType.SENSOR))
 
-        elif positioning == "matrix":
-            uid = 1
-            for y in range(0, n_y):
-                for x in range(0, n_x):
-                    self.nodes.append(Node(self.simpy_env, uid,
-                                           Position(-size_x / 2 + x * size_x / (n_x - 1) + np.random.uniform(-rnd/2, rnd),
-                                                    -size_y / 2 + y * size_y / (n_y - 1) + np.random.uniform(-rnd/2, rnd)),
-                                           NodeType.SENSOR))
-                    uid += 1
+            elif positioning == "line":
+                if n == 1:
+                    self.nodes.append(Node(self.simpy_env, 1, Position(size_x, size_y), NodeType.SENSOR))
+                else:
+                    for x in range(1, n+1):
+                        self.nodes.append(Node(self.simpy_env, x,
+                                               Position(-size_x/2+(x-1)*size_x/n + np.random.uniform(-rnd/2, rnd),
+                                                        -size_y/2+(x-1)*size_y/n + np.random.uniform(-rnd/2, rnd)),
+                                               NodeType.SENSOR))
 
-        recalc = self.evaluate_distances()
-        while recalc:
+            elif positioning == "matrix":
+                uid = 1
+                for y in range(0, n_y):
+                    for x in range(0, n_x):
+                        self.nodes.append(Node(self.simpy_env, uid,
+                                               Position(-size_x / 2 + x * size_x / (n_x - 1) + np.random.uniform(-rnd/2, rnd),
+                                                        -size_y / 2 + y * size_y / (n_y - 1) + np.random.uniform(-rnd/2, rnd)),
+                                               NodeType.SENSOR))
+                        uid += 1
+
+            elif positioning == "funnel":
+                levels = kwargs.get('levels', None)
+                d = math.sqrt(size_x**2 + size_y**2)/len(levels)
+                i = 1
+                base_angle = math.degrees(math.atan(size_y/size_x))
+                for level, n_level in enumerate(levels):
+
+                    circle_x = 0
+                    circle_y = 0
+                    circle_r = d * (level + 1)
+
+                    # circle_x = d * level * math.cos(math.radians(base_angle))
+                    # circle_y = d * level * math.sin(math.radians(base_angle))
+                    # circle_r = d
+
+                    angle_viewport = min(180, 90 / (2*max(1, level))+n_level*5)
+                    if n_level > 1:
+                        angle_start = -angle_viewport/2
+                        angle_step = angle_viewport / (n_level - 1)
+                    else:
+                        angle_start = 0
+                        angle_step = 0
+                    for j in range(0, n_level):
+                        # calculating coordinates
+                        x = circle_r * math.cos(math.radians(base_angle + angle_start + j*angle_step)) + circle_x
+                        y = circle_r * math.sin(math.radians(base_angle + angle_start + j*angle_step)) + circle_y
+
+                        self.nodes.append(Node(self.simpy_env, i,
+                                               Position(x + np.random.uniform(-rnd/2, rnd),
+                                                        y + np.random.uniform(-rnd/2, rnd)),
+                                               NodeType.SENSOR))
+
+                        i += 1
+
             recalc = self.evaluate_distances()
+            while recalc:
+                recalc = self.evaluate_distances()
 
         self.link_table = LinkTable(self.nodes)
         for node in self.nodes:
@@ -102,6 +148,11 @@ class Network:
 
                             return True
 
+    def rerun(self, time):
+        self.simpy_env = simpy.Environment()
+        for node in self.nodes:
+            node.env = self.simpy_env
+        self.run(time)
 
     def run(self, time):
         # First get max hop count in total network to establish how long the simulation should be extended
@@ -124,6 +175,9 @@ class Network:
             self.simpy_env.process(node.run())
 
         self.simpy_env.run(until=simulation_time)
+
+    def copy(self):
+        return Network(network=self)
 
     def plot_network(self):
         self.link_table.plot()

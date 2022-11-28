@@ -34,7 +34,7 @@ MEASURE_DURATION_S: 0.02           # how long takes a measurement
 
 MAX_BUF_SIZE_BYTE: 16
 
-MAX_SEEN_PACKETS: 10
+MAX_SEEN_PACKETS: 64
 MAX_ROUTE_SIZE: 8
 
 # timer set when first data in buffer (sense or DL)

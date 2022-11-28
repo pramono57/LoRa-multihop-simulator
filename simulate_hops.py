@@ -19,3 +19,4 @@ network.plot_hops_statistic("plr")
 network.plot_hops_statistic("aggregation_efficiency")
 network.plot_hops_statistic("energy")
 
+print("Test")

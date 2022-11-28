@@ -13,6 +13,7 @@ from tabulate import tabulate
 import simpy
 import math
 
+
 class GatewayState(IntEnum):
     STATE_INIT = auto()
     STATE_ROUTE_DISCOVERY = auto()
@@ -95,13 +96,12 @@ class Node:
         self.time_to_sense = None
 
         # Timers
-        self.tx_collision_timer = TxTimer(env, TimerType.COLLISION)
-        if self.type == NodeType.GATEWAY:
-            self.tx_route_discovery_timer = TxTimer(env, TimerType.ROUTE_DISCOVERY)
-        else:
-            self.tx_route_discovery_timer = None
-        self.tx_aggregation_timer = TxTimer(env, TimerType.AGGREGATION)
-        self.sense_timer = TxTimer(env, TimerType.SENSE)
+        self.tx_collision_timer = None
+        self.tx_route_discovery_timer = None
+        self.tx_aggregation_timer = None
+        self.sense_timer = None
+        self.timers_setup()
+
         self.sense_until = None
 
         self.position = _position
@@ -133,10 +133,23 @@ class Node:
             self.states.append(state_to)
             self.states_time.append(self.env.now)
 
+    def timers_setup(self):
+        # Timers
+        self.tx_collision_timer = TxTimer(self.env, TimerType.COLLISION)
+        if self.type == NodeType.GATEWAY:
+            self.tx_route_discovery_timer = TxTimer(self.env, TimerType.ROUTE_DISCOVERY)
+        else:
+            self.tx_route_discovery_timer = None
+        self.tx_aggregation_timer = TxTimer(self.env, TimerType.AGGREGATION)
+        self.sense_timer = TxTimer(self.env, TimerType.SENSE)
+
     def run(self):
         random_wait = np.random.uniform(0, settings.MAX_DELAY_START_PER_NODE_RANDOM_S)
         yield self.env.timeout(random_wait)
         print(f"{self.uid}\tStarting node {self.uid}")
+
+        self.timers_setup()  # Reset timers
+
         if self.type == NodeType.GATEWAY:
             self.tx_route_discovery_timer.start()
         else:
@@ -238,7 +251,7 @@ class Node:
                         loudest_node_rx_message = loudest_node.message_in_tx
                     else:
                         loudest_node = None
-                elif loudest_node_rx_message is not None and self.env.now >= loudest_node.done_tx - loudest_node_rx_message.time()/10:
+                elif loudest_node_rx_message is not None and self.env.now >= loudest_node.done_tx - loudest_node_rx_message.time() / 10:
                     rx_message = loudest_node.message_in_tx
 
             if rx_message is None:
@@ -266,7 +279,7 @@ class Node:
                     for node in nodes_in_tx:
                         if earliest_done is None or node.done_tx < earliest_done:
                             toa = node.message_in_tx.time()
-                            earliest_done = node.done_tx - toa/10
+                            earliest_done = node.done_tx - toa / 10
 
                     # Decide which "wait" to take: lowest value, but at least 1ms
                     wait = max(0.001, min(wait, earliest_done - self.env.now))
@@ -312,11 +325,17 @@ class Node:
                                          self,
                                          self.forwarded_mgs_buffer)
 
+            # Check if already forwarded by me
+            # TODO: In real life this is not known!
+            if self.message_in_tx.in_trace(self.uid):
+                print("Trouble")
+
             # Increase counters and adjust lqi if forward
             if len(self.message_in_tx.payload.forwarded_data) > 0:
                 self.message_in_tx.hop(self)
                 self.message_in_tx.header.cumulative_lqi += \
                     self.link_table.get_from_uid(self.uid, self.forwarded_mgs_buffer[0].payload.own_data.src).lqi()
+
 
         if self.message_in_tx is not None:
             self.state_change(NodeState.STATE_PREAMBLE_TX)
@@ -349,7 +368,7 @@ class Node:
                     self.message_counter_only_forwarded_data += 1
 
             yield self.env.timeout(packet_time)
-            self.state_change(NodeState.STATE_SLEEP) # Go back to sleep after transmit
+            self.state_change(NodeState.STATE_SLEEP)  # Go back to sleep after transmit
 
             self.done_tx = None
             self.message_in_tx = None
@@ -436,16 +455,20 @@ class Node:
     def handle_rx_msg(self, rx_packet):
         packet_for_us = False
         update_beacon = False
+
         # Check for routing in all received route discovery messages
         if rx_packet.is_route_discovery():
-            print(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
-            self.route.update(rx_packet.header.address,
-                              self.link_table.get_from_uid(self.uid,
-                                                           rx_packet.header.address).snr(),
-                              rx_packet.header.cumulative_lqi + self.link_table.get_from_uid(self.uid,
-                                                                                             rx_packet.header.address).lqi(),
-                              rx_packet.header.hops)
-            print(f"{self.uid}\r\n{self.route}")
+            # TODO: quick and dirty fix, make better and why is this needed?
+            if self.link_table.get_from_uid(self.uid,
+                                            rx_packet.header.address).in_range():
+                print(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
+                self.route.update(rx_packet.header.address,
+                                  self.link_table.get_from_uid(self.uid,
+                                                               rx_packet.header.address).snr(),
+                                  rx_packet.header.cumulative_lqi + self.link_table.get_from_uid(self.uid,
+                                                                                                 rx_packet.header.address).lqi(),
+                                  rx_packet.header.hops)
+                print(f"{self.uid}\r\n{self.route}")
 
         if rx_packet.header.uid in self.messages_seen:
             print(
@@ -483,19 +506,28 @@ class Node:
         self.own_payloads_arrived_at_gateway.append(payload)
 
     def pdr(self):
-        self._pdr = len(self.own_payloads_arrived_at_gateway) / len(self.own_payloads_sent)
+        if len(self.own_payloads_sent) > 0:
+            self._pdr = len(self.own_payloads_arrived_at_gateway) / len(self.own_payloads_sent)
+        else:
+            self._pdr = 1
         return self._pdr
 
     def plr(self):
-        self._plr = len(self.own_payloads_collided) / len(self.own_payloads_sent)
+        if len(self.own_payloads_sent) > 0:
+            self._plr = len(self.own_payloads_collided) / len(self.own_payloads_sent)
+        else:
+            self._plr = 0
         return self._plr
 
     def aggregation_efficiency(self):
-        only_own_payload_sent = 0
-        for message in self.messages_sent:
-            if len(message.payload.forwarded_data) == 0:
-                only_own_payload_sent += 1
-        return 1-only_own_payload_sent/len(self.messages_sent)
+        if len(self.messages_sent) > 0:
+            only_own_payload_sent = 0
+            for message in self.messages_sent:
+                if len(message.payload.forwarded_data) == 0:
+                    only_own_payload_sent += 1
+            return 1 - only_own_payload_sent / len(self.messages_sent)
+        else:
+            return 1
 
     def energy(self):
         return self.energy_mJ

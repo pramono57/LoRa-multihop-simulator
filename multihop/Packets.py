@@ -76,6 +76,12 @@ class MessagePayloadChunk:
         self.collided = True
         self.src_node.collided(self)
 
+    def in_trace(self, uid):
+        if self.trace.count(uid) > 1:
+            return True
+        else:
+            return False
+
     def __str__(self):
         data = ":".join("{:02x}".format(c) for c in self.data)
         return f"(trace:{self.trace} | data:{data})"
@@ -112,6 +118,10 @@ class MessagePayload:
         for p in self.forwarded_data:
             p.handle_collision()
 
+    def in_trace(self, uid):
+        for p in self.forwarded_data:
+            if p.in_trace(uid):
+                return True
     def __str__(self):
         str = f"own_data:{self.own_data} | forwarded_data:["
         for f in self.forwarded_data:
@@ -169,6 +179,9 @@ class Message:
     def handle_collision(self):
         self.collided = True
         self.payload.handle_collision()
+
+    def in_trace(self, uid):
+        return self.payload.in_trace(uid)
 
     def __str__(self):
         return f"{self.header} || {self.payload}"

@@ -3,7 +3,7 @@
 from multihop.Network import *
 from multihop.config import settings
 
-network = Network(n = 1, shape = "line", size_x = 30, size_y = 0)
+network = Network(n=1, shape="line", size_x=30, size_y=0)
 
 positions = []
 

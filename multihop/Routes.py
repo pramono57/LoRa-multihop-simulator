@@ -7,6 +7,7 @@ class Route:
         self.neighbour_list = []
 
     def update(self, uid, snr, cumulative_lqi, hops):
+        # TODO temp fix
         neighbour = self.find_node(uid)
         if neighbour is None:
             if len(self.neighbour_list) >= settings.MAX_ROUTE_SIZE:
