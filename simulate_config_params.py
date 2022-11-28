@@ -9,7 +9,7 @@ import multihop.utils
 random.seed(5555)
 np.random.seed(19680801)
 
-setting = "TX_COLLISION_TIMER_NOMINAL"
+setting = "MEASURE_INTERVAL_S"
 values = range(2*60, 20*60, 2*60)
 
 network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
