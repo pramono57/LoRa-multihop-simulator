@@ -25,7 +25,7 @@ SHADOWING_SIGMA: 11.25
 SNR_MAX: 30
 
 # GATEWAY SPECIFIC PARAMS
-ROUTE_DISCOVERY_S: 60*60*24        # period of transmitting a new beacon for routing
+ROUTE_DISCOVERY_S: {{60*60*24}}        # period of transmitting a new beacon for routing
 GW_BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
 
 # SENSOR NODE SPECIFIC PARAMS

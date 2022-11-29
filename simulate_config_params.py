@@ -22,6 +22,8 @@ filename = f"results/simulate_matrix_{setting1}_{setting2}.csv"
 
 run_time = 60*60*24 # Simulate for 1 day
 
+random.seed(5555)
+np.random.seed(5555)
 network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
 network.plot_network()
 

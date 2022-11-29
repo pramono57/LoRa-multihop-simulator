@@ -151,6 +151,7 @@ class Node:
         self.timers_setup()  # Reset timers
 
         if self.type == NodeType.GATEWAY:
+            self.tx_route_discovery_timer.backoff = 1.1 * settings.MAX_DELAY_START_PER_NODE_RANDOM_S
             self.tx_route_discovery_timer.start()
         else:
             self.sense_timer.start()
@@ -178,6 +179,7 @@ class Node:
                 self.route_discovery_forward_buffer = \
                     Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], self, [])
                 yield self.env.process(self.tx())
+                self.tx_route_discovery_timer.backoff = settings.ROUTE_DISCOVERY_S
                 self.tx_route_discovery_timer.reset()
                 #
 

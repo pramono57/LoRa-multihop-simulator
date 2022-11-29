@@ -11,6 +11,7 @@ import numpy as np
 import simpy
 import math
 from operator import methodcaller
+import networkx as nx
 
 class Network:
     def __init__(self, **kwargs):
@@ -164,7 +165,9 @@ class Network:
                 max_hops = hops
 
         # Extend simulation time
-        simulation_time = time + (max_hops * (settings.TX_AGGREGATION_TIMER_MAX
+        simulation_time = time + (max_hops * (settings.TX_AGGREGATION_TIMER_NOMINAL
+                                              + settings.TX_AGGREGATION_TIMER_STEP_UP
+                                              * settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
                                               + settings.TX_AGGREGATION_TIMER_RANDOM[1]
                                               + settings.TX_COLLISION_TIMER_NOMINAL
                                               + settings.TX_COLLISION_TIMER_RANDOM[1]))
@@ -199,7 +202,12 @@ class Network:
         for node in self.nodes:
             if node.type == NodeType.SENSOR:
                 if node.route is not None:
-                    hops = node.route.find_best()["hops"]
+                    route = node.route.find_best()
+                    hops = 0
+                    if route is not None:
+                        hops = route["hops"]
+                    else: # If no route is yet found by multihop protocol, find location in networkx
+                        hops = len(nx.shortest_path(self.link_table.network, source=0, target=node.uid))
                     if data.get(hops, None) is None:
                         data[hops] = [method(node)]
                     else:

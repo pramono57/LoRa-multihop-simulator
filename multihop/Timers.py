@@ -24,8 +24,10 @@ class TxTimer:
             self.backoff_max = None
         elif type is TimerType.AGGREGATION:
             self.backoff = random((settings.TX_AGGREGATION_TIMER_NOMINAL - settings.TX_AGGREGATION_TIMER_RANDOM[0], settings.TX_AGGREGATION_TIMER_NOMINAL + settings.TX_AGGREGATION_TIMER_RANDOM[1]))
-            self.backoff_max = settings.TX_AGGREGATION_TIMER_STEP_UP * settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
-            self.backoff_min = settings.TX_AGGREGATION_TIMER_STEP_DOWN * settings.TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN
+            self.backoff_max = settings.TX_AGGREGATION_TIMER_NOMINAL + \
+                               settings.TX_AGGREGATION_TIMER_STEP_UP * settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
+            self.backoff_min = settings.TX_AGGREGATION_TIMER_NOMINAL - \
+                               settings.TX_AGGREGATION_TIMER_STEP_DOWN * settings.TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN
         elif type is TimerType.SENSE:
             self.backoff = settings.MEASURE_INTERVAL_S
         elif type is TimerType.ROUTE_DISCOVERY:
