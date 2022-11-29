@@ -1,6 +1,9 @@
 import numpy as np
 from .config import settings
 
+from collections import defaultdict
+from itertools import chain
+from operator import methodcaller
 import random as rnd
 
 rnd.seed(0)
@@ -12,6 +15,15 @@ def random(min_max):
     else:
         return rnd.uniform(0, min_max)
 
+def merge_data(one, two):
+    dd = defaultdict(list)
+
+    # iterate dictionary items
+    dict_items = map(methodcaller('items'), (one, two))
+    for k, v in chain.from_iterable(dict_items):
+        dd[k].extend(v)
+
+    return dd
 
 def flatten_data(depth, data, names):
     l = []

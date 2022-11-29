@@ -2,18 +2,21 @@ from multihop.Network import *
 import matplotlib.pyplot as plt
 import random
 import pandas as pd
+import logging
 
 from multihop.config import settings
 import multihop.utils
 
 random.seed(5555)
 np.random.seed(19680801)
+logging.getLogger().setLevel(logging.WARNING)
+
+filename = "results/simulate_funnel_size_aggregation_timer.csv"
 
 setting = "TX_AGGREGATION_TIMER_NOMINAL"
 values = range(1*60, 2*60, 2*60)
 
 sizes = range(1, 10, 1)
-
 
 pdr = {}
 plr = {}
@@ -46,6 +49,7 @@ df = pd.DataFrame(flatten_data(2,
 
 # Only interested in the middle node
 df = df[df.hops == 0]
+df.to_csv(filename)
 
 fig, ax = plt.subplots()
 
