@@ -5,6 +5,7 @@ from collections import defaultdict
 from itertools import chain
 from operator import methodcaller
 import random as rnd
+import pandas as pd
 
 rnd.seed(0)
 
@@ -15,6 +16,7 @@ def random(min_max):
     else:
         return rnd.uniform(0, min_max)
 
+
 def merge_data(one, two):
     dd = defaultdict(list)
 
@@ -24,6 +26,25 @@ def merge_data(one, two):
         dd[k].extend(v)
 
     return dd
+
+
+def data_to_df(data_list):
+    dic = {}
+
+    dic["hops"] = []
+    for name, value in data_list.items():
+        dic[name] = []
+
+    first_key = list(data_list.keys())[0]
+    for hops, values in data_list[first_key].items():
+        for i, value in enumerate(values):
+            dic["hops"].append(hops)
+            for name, data in data_list.items():
+                dic[name].append(data[hops][i])
+
+
+    return pd.DataFrame(dic)
+
 
 def flatten_data(depth, data, names):
     l = []

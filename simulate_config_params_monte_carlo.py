@@ -6,7 +6,7 @@ import logging
 import sys
 
 from multihop.config import settings
-from multihop.utils import merge_data
+from multihop.utils import data_to_df
 from multihop.preambles import preambles
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
@@ -19,16 +19,19 @@ scenario_settings = [
     {
         "name": "MEASURE_INTERVAL_S",
         "min": 2 * 60,
-        "max": 60 * 60
+        "max": 60 * 60,
+        "unit": 60
     }, {
         "name": "TX_AGGREGATION_TIMER_NOMINAL",
         "min": 2 * 60,
-        "max": 60 * 60
+        "max": 60 * 60,
+        "unit": 60
     }
 ]
 number_of_scenarios = 1000
 
 each_time = 10  # Run each scenario 10 times
+run_time = 60 * 60  # Simulate for 1 day: 60*60*24
 
 # Generate scenarios
 scenarios = []
@@ -38,18 +41,7 @@ for i in range(0, number_of_scenarios):
         scenario[setting["name"]] = np.random.uniform(setting["min"], setting["max"])
     scenarios.append(scenario)
 
-setting1 = "MEASURE_INTERVAL_S"
-values1 = range(2 * 60, 10 * 60, 5 * 60)  # 60*60
-
-setting2 = "TX_AGGREGATION_TIMER_NOMINAL"
-values2 = range(2 * 60, 10 * 60, 5 * 60)
-
-filename = f"results/simulate_matrix_{setting1}_{setting2}.csv"
-
-run_time = 60 * 60  # Simulate for 1 day: 60*60*24
-
-random.seed(5555)
-np.random.seed(5555)
+# Generate network
 network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
 network.plot_network()
 
@@ -60,38 +52,28 @@ energy = {}
 
 logging.info("Start simulation")
 
-for value2 in values2:
-    for value1 in values1:
-        logging.info(f"Simulating for value2 {value2}")
+for i_s, scenario in enumerate(scenarios):
 
-        random.seed(5555)
-        np.random.seed(5555)
-        settings.update({setting1: value1})
+    # Set settings from scenario
+    for setting_name, setting_value in scenario.items():
+        settings.update({setting_name: setting_value})
 
-        settings.PREAMBLE_DURATION_S = preambles[settings.LORA_SF][settings.MEASURE_INTERVAL_S]
+    logging.info(f"Simulating for  {i_s}")
 
-        if value2 not in pdr:
-            logging.info(f"\t Simulating for value1 {value1}")
+    random.seed(5555)
+    np.random.seed(5555)
 
-            pdr[value2] = {}
-            plr[value2] = {}
-            aggregation_efficiency[value2] = {}
-            energy[value2] = {}
+    for r in range(0, each_time):
+        network = network.copy()
+        network.run(run_time)
 
-        for r in range(0, monte_carlo):
-            network = network.copy()
-            network.run(run_time)
+        df = data_to_df({"pdr": network.hops_statistic("pdr"),
+                         "plr": network.hops_statistic("plr"),
+                         "aggregation_efficiency": network.hops_statistic("aggregation_efficiency"),
+                         "energy": network.hops_statistic("energy")})
 
-            if value1 not in pdr[value2]:
-                pdr[value2][value1] = network.hops_statistic("pdr")
-                plr[value2][value1] = network.hops_statistic("plr")
-                aggregation_efficiency[value2][value1] = network.hops_statistic("aggregation_efficiency")
-                energy[value2][value1] = network.hops_statistic("energy")
-            else:
-                merge_data(pdr[value2][value1], network.hops_statistic("pdr"))
-                merge_data(plr[value2][value1], network.hops_statistic("plr"))
-                merge_data(aggregation_efficiency[value2][value1], network.hops_statistic("aggregation_efficiency"))
-                merge_data(energy[value2][value1], network.hops_statistic("energy"))
+        for setting_name, setting_value in scenario.items():
+            df[setting_name] = [setting_value] * len(df)
 
 logging.info("Simulation done")
 
