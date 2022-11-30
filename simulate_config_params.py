@@ -7,20 +7,21 @@ import sys
 
 from multihop.config import settings
 from multihop.utils import merge_data
+from multihop.preambles import preambles
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-monte_carlo = 10 # Run each setting 10 times
+monte_carlo = 1 # Run each setting 10 times
 
 setting1 = "MEASURE_INTERVAL_S"
-values1 = range(2*60, 6*60*60, 5*60)
+values1 = range(2*60, 10*60, 5*60) #60*60
 
 setting2 = "TX_AGGREGATION_TIMER_NOMINAL"
-values2 = range(2*60, 6*60*60, 5*60)
+values2 = range(2*60, 10*60, 5*60)
 
 filename = f"results/simulate_matrix_{setting1}_{setting2}.csv"
 
-run_time = 60*60*24 # Simulate for 1 day
+run_time = 60*60 # Simulate for 1 day: 60*60*24
 
 random.seed(5555)
 np.random.seed(5555)
@@ -42,6 +43,8 @@ for value2 in values2:
         np.random.seed(5555)
         settings.update({setting1: value1})
 
+        settings.PREAMBLE_DURATION_S = preambles[settings.LORA_SF][settings.MEASURE_INTERVAL_S]
+
         if value2 not in pdr:
             logging.info(f"\t Simulating for value1 {value1}")
 
@@ -52,7 +55,7 @@ for value2 in values2:
 
         for r in range(0, monte_carlo):
             network = network.copy()
-            network.run(60*30)
+            network.run(run_time)
 
             if value1 not in pdr[value2]:
                 pdr[value2][value1] = network.hops_statistic("pdr")
@@ -77,11 +80,11 @@ logging.info("Written to file")
 fig, ax = plt.subplots()
 
 for key, grp in df.groupby(['hops']):
-    data = grp.groupby(setting, as_index=False)['energy'].agg({'low': 'min', 'high': 'max', 'mean': 'mean'})
+    data = grp.groupby(setting1, as_index=False)['energy'].agg({'low': 'min', 'high': 'max', 'mean': 'mean'})
     data.reset_index(inplace=True)
 
-    data.plot(ax=ax, x=setting, y='mean', label=key)
-    plt.fill_between(x=setting, y1='low', y2='high', alpha=0.3, data=data)
+    data.plot(ax=ax, x=setting1, y='mean', label=key)
+    plt.fill_between(x=setting1, y1='low', y2='high', alpha=0.3, data=data)
 
 plt.show()
 print("test")
