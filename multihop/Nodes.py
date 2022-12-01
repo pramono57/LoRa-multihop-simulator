@@ -253,7 +253,9 @@ class Node:
                         loudest_node_rx_message = loudest_node.message_in_tx
                     else:
                         loudest_node = None
-                elif loudest_node_rx_message is not None and self.env.now >= loudest_node.done_tx - loudest_node_rx_message.time() / 10:
+                elif loudest_node_rx_message is not None \
+                        and self.env.now >= loudest_node.done_tx - loudest_node_rx_message.time() / 10 \
+                        and self.link_table.get_from_uid(self.uid, loudest_node.uid).in_range():
                     rx_message = loudest_node.message_in_tx
 
             if rx_message is None:
@@ -327,17 +329,11 @@ class Node:
                                          self,
                                          self.forwarded_mgs_buffer)
 
-            # Check if already forwarded by me
-            # TODO: In real life this is not known!
-            if self.message_in_tx.in_trace(self.uid):
-                logging.debug("Trouble")
-
             # Increase counters and adjust lqi if forward
             if len(self.message_in_tx.payload.forwarded_data) > 0:
                 self.message_in_tx.hop(self)
                 self.message_in_tx.header.cumulative_lqi += \
                     self.link_table.get_from_uid(self.uid, self.forwarded_mgs_buffer[0].payload.own_data.src).lqi()
-
 
         if self.message_in_tx is not None:
             self.state_change(NodeState.STATE_PREAMBLE_TX)
@@ -357,6 +353,8 @@ class Node:
             self.messages_sent.append(self.message_in_tx)
             # Only for routed messages
             if self.message_in_tx.header.type == MessageType.TYPE_ROUTED:
+                self.link_table.get_from_uid(self.uid, self.message_in_tx.header.address).use()
+
                 if self.message_in_tx.payload.own_data.len > 0:
                     self.own_payloads_sent.append(self.message_in_tx.payload.own_data)
                 for pl in self.message_in_tx.payload.forwarded_data:

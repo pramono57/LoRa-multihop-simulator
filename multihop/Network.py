@@ -245,6 +245,9 @@ class Network:
     def plot_network(self):
         self.link_table.plot()
 
+    def plot_network_usage(self):
+        self.link_table.plot_usage()
+
     def plot_states(self):
         import matplotlib.pyplot as plt
 
