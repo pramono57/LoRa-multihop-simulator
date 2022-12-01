@@ -14,6 +14,9 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 random.seed(9999)
 np.random.seed(9999)
 
+# DF save settings
+filename = "results/monte_carlo_measure_aggregation.csv"
+
 # Scenario settings
 scenario_settings = [
     {
@@ -28,9 +31,9 @@ scenario_settings = [
         "unit": 60
     }
 ]
-number_of_scenarios = 1000
+number_of_scenarios = 2
 
-each_time = 10  # Run each scenario 10 times
+each_time = 1  # Run each scenario 10 times
 run_time = 60 * 60  # Simulate for 1 day: 60*60*24
 
 # Generate scenarios
@@ -38,17 +41,15 @@ scenarios = []
 for i in range(0, number_of_scenarios):
     scenario = {}
     for setting in scenario_settings:
-        scenario[setting["name"]] = np.random.uniform(setting["min"], setting["max"])
+        scenario[setting["name"]] = round(np.random.uniform(setting["min"], setting["max"])
+                                          / setting["unit"]) * setting["unit"]
     scenarios.append(scenario)
 
 # Generate network
 network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
 network.plot_network()
 
-pdr = {}
-plr = {}
-aggregation_efficiency = {}
-energy = {}
+result = pd.DataFrame()
 
 logging.info("Start simulation")
 
@@ -75,13 +76,11 @@ for i_s, scenario in enumerate(scenarios):
         for setting_name, setting_value in scenario.items():
             df[setting_name] = [setting_value] * len(df)
 
+        result = pd.concat([result, df], ignore_index=True)
+
 logging.info("Simulation done")
 
-df = pd.DataFrame(flatten_data(2,
-                               [pdr, plr, aggregation_efficiency, energy],
-                               [setting2, setting1, "hops", ["pdr", "plr", "aggregation_efficiency", "energy"]]))
-df.to_csv(filename)
-
+result.to_csv(filename)
 logging.info("Written to file")
 
 print("test")

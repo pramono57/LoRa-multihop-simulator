@@ -42,7 +42,6 @@ def data_to_df(data_list):
             for name, data in data_list.items():
                 dic[name].append(data[hops][i])
 
-
     return pd.DataFrame(dic)
 
 
