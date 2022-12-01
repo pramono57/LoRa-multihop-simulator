@@ -36,6 +36,11 @@ class Network:
             size_x = kwargs.get('size_x', None)
             size_y = kwargs.get('size_y', None)
 
+            size = kwargs.get('size', None)
+            if size is not None:
+                size_x = size
+                size_y = size
+
             density = kwargs.get('density', None)  # Density: how many nodes per km2
             if density is not None:
                 n_x = round(math.sqrt(density)/1000*size_x)
@@ -86,6 +91,61 @@ class Network:
                                                NodeType.SENSOR))
                         uid += 1
 
+            elif positioning == "circles-equal" or positioning == "circles":
+                uid = 1
+
+                center_x = 0
+                center_y = 0
+
+                n_circles = math.ceil(n_x/2+1)
+                n_per_circle = 0
+                if positioning == "circles-equal":
+                    n_per_circle = n_y
+                    n_circles = n_x
+
+                total_area = 0
+                for x in range(1, n_circles+1):
+                    a = size_x/n_x*x
+                    b = size_x/n_x*x
+
+                    total_area += math.pi * a * b
+
+                carry = 0
+                for x in range(1, n_circles+1):
+                    a = size_x/n_x*x
+                    b = size_x/n_x*x
+
+                    area = math.pi * a * b
+                    if positioning == "circles":
+                        n_per_circle = round(n_x * n_y / total_area * area)
+                        if n_per_circle < 4:
+                            carry = 4 - n_per_circle
+                            n_per_circle = 4
+                        elif n_per_circle > 4+carry:
+                            n_per_circle -= carry
+                            carry = 0
+
+                    start_angle = 0
+                    if positioning == "circles-equal":
+                        start_angle = 360/n_per_circle/2*x
+                    elif positioning == "circles":
+                        start_angle = 360/n_per_circle/(x % 2 + 1)
+
+                    for c in range(0, n_per_circle):
+                        angle = (start_angle + 360 / n_per_circle * c) % 360
+                        _x = a * b / math.sqrt(b**2 + a**2 * (math.tan(math.radians(angle)))**2)
+                        if 270 >= angle > 90:
+                            _x = -_x
+                        _y = _x * math.tan(math.radians(angle))
+                        self.nodes.append(Node(self.simpy_env, uid,
+                                               Position(_x + np.random.uniform(-rnd/2, rnd),
+                                                        _y + np.random.uniform(-rnd/2, rnd)),
+                                               NodeType.SENSOR))
+                        if uid == 36:
+                            print("trouble")
+                        uid += 1
+
+
             elif positioning == "funnel":
                 levels = kwargs.get('levels', None)
                 d = math.sqrt(size_x**2 + size_y**2)/len(levels)
@@ -120,9 +180,9 @@ class Network:
 
                         i += 1
 
-            recalc = self.evaluate_distances()
-            while recalc:
-                recalc = self.evaluate_distances()
+            # recalc = self.evaluate_distances()
+            # while recalc:
+            #     recalc = self.evaluate_distances()
 
         self.link_table = LinkTable(self.nodes)
         for node in self.nodes:
