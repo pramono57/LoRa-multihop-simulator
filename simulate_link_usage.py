@@ -16,7 +16,7 @@ run_time = 60 * 60  # Simulate for 1 day: 60*60*24
 random.seed(5555)
 np.random.seed(5555)
 network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
-
+network.plot_network()
 logging.info("Simulation started")
 
 network.run(run_time)
