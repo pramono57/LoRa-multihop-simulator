@@ -32,8 +32,8 @@ class MessageHeader:
 
     @staticmethod
     def size():
-        # msg_id + type + hops + lqi + address = 6
-        return 6
+        # msg_id 2 + type 1 + hops 1 + lqi 2 + address 1  = 6
+        return 7
 
     def hop(self):
         self.hops += 1
@@ -50,7 +50,9 @@ class MessagePayloadChunk:
         self.len = len(data)
 
         # Meta data
-        self.sent_at = src_node.env.now
+        self.sent_at = 0
+        if src_node is not None:
+            self.sent_at = src_node.env.now
         self.arrived_at = 0
         self.hops = 0
         self.trace = [src]
