@@ -129,7 +129,8 @@ class Network:
                     if positioning == "circles-equal":
                         start_angle = 360/n_per_circle/2*x
                     elif positioning == "circles":
-                        start_angle = 360/n_per_circle/(x % 2 + 1)
+                        start_angle = 360 / n_per_circle
+                        # start_angle = 360/n_per_circle/(x % 2 + 1)
 
                     for c in range(0, n_per_circle):
                         angle = (start_angle + 360 / n_per_circle * c) % 360
@@ -188,6 +189,17 @@ class Network:
         for node in self.nodes:
             if type(node) is Node:
                 node.add_meta(self.nodes, self.link_table)
+
+    def update(self):
+        self.link_table = LinkTable(self.nodes)
+        for node in self.nodes:
+            if type(node) is Node:
+                node.add_meta(self.nodes, self.link_table)
+    def add_sensor_node(self, uid, x, y):
+        self.nodes.append(Node(self.simpy_env, uid,
+                               Position(x, y),
+                               NodeType.SENSOR))
+        self.update()
 
     def evaluate_distances(self):
         for node1 in self.nodes:

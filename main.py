@@ -11,6 +11,13 @@ random.seed(5555)
 np.random.seed(19680801)
 logging.getLogger().setLevel(logging.WARNING)
 
+network = Network(shape="circles", size_x=100, size_y=100, n_x=3, n_y=20)
+# network = Network(shape="funnel", size_x=100, size_y=0, levels=[1, 4, 2])
+# network.nodes[6].position = Position(79, 38)
+# network.nodes[7].position = Position(62, 66)
+# network.update()
+network.plot_network()
+
 filename = "results/simulate_funnel_size_aggregation_timer.csv"
 
 setting = "TX_AGGREGATION_TIMER_NOMINAL"

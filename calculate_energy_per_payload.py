@@ -1,4 +1,5 @@
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from multihop.Packets import *
 from multihop.config import settings
@@ -33,7 +34,12 @@ df = pd.DataFrame({
     "energy_per_payload": energies_per_payload
 })
 
+plt.ioff()
+
 _df = df.pivot(index='payload_n', columns='payload_size', values='energy_per_payload')
 _df.plot()
+plt.show()
 
+# import tikzplotlib
+# tikzplotlib.save("results/calculate_energy_per_payload.tex")
 print("The end")
