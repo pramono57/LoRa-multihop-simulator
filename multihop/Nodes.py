@@ -124,11 +124,11 @@ class Node:
 
     def state_change(self, state_to):
         if state_to is self.state and state_to is not NodeState.STATE_SLEEP:
-            logging.debug("mmm not possible, only sleepy can do this")
+            logging.info("mmm not possible, only sleepy can do this")
         # if self.state is None:
-        #     logging.debug(f"{self.uid}\tState change: None->{state_to.fullname}")
+        #     logging.info(f"{self.uid}\tState change: None->{state_to.fullname}")
         # else:
-        #     logging.debug(f"{self.uid}\tState change: {self.state.fullname}->{state_to.fullname}")
+        #     logging.info(f"{self.uid}\tState change: {self.state.fullname}->{state_to.fullname}")
         if state_to is not self.state:
             if len(self.states_time) > 0:
                 self.energy_mJ += (self.env.now - self.states_time[-1]) * power_of_state(self.state)
@@ -150,7 +150,7 @@ class Node:
     def run(self):
         random_wait = np.random.uniform(0, settings.MAX_DELAY_START_PER_NODE_RANDOM_S)
         yield self.env.timeout(random_wait)
-        logging.debug(f"{self.uid}\tStarting node {self.uid}")
+        logging.info(f"{self.uid}\tStarting node {self.uid}")
 
         self.timers_setup()  # Reset timers
 
@@ -169,7 +169,7 @@ class Node:
             self.state_change(NodeState.STATE_SENSING)
             yield self.env.timeout(settings.MEASURE_DURATION_S)
             # schedule timer for transmit
-            logging.debug(f"{self.uid}\tSensing")
+            logging.info(f"{self.uid}\tSensing")
             self.tx_aggregation_timer.start(restart=False)
             self.sense_timer.start()
 
@@ -358,9 +358,9 @@ class Node:
             yield self.env.timeout(settings.PREAMBLE_DURATION_S)
 
             self.state_change(NodeState.STATE_TX)
-            logging.debug(
+            logging.info(
                 f"{self.uid}\t Sending packet {self.message_in_tx.header.uid} with size: {self.message_in_tx.size()} bytes")
-            logging.debug(f"{self.uid}\tTx packet to {self.message_in_tx.header.address} {self.message_in_tx}")
+            logging.info(f"{self.uid}\tTx packet to {self.message_in_tx.header.address} {self.message_in_tx}")
 
             if self.message_in_tx.is_routed() and len(self.message_in_tx.payload.forwarded_data) == 0:
                 self.tx_aggregation_timer.step_down()
@@ -455,12 +455,12 @@ class Node:
                 for node in active_nodes:
                     if node.state == NodeState.STATE_TX and node.message_in_tx.is_route_discovery() \
                             and not node.message_in_tx.collided:
-                        logging.debug(f"{self.uid}\t Route discovery collision detected")
+                        logging.info(f"{self.uid}\t Route discovery collision detected")
                         self.collisions.append(self.env.now)
                         node.message_in_tx.handle_collision()
                     elif node.state == NodeState.STATE_TX and node.message_in_tx.is_routed() and \
                             node.message_in_tx.header.address == self.uid and not node.message_in_tx.collided:
-                        logging.debug(f"{self.uid}\t Routed collision detected that was addressed to us")
+                        logging.info(f"{self.uid}\t Routed collision detected that was addressed to us")
                         node.message_in_tx.handle_collision()
                         self.collisions.append(self.env.now)
 
@@ -479,17 +479,17 @@ class Node:
             # TODO: quick and dirty fix, make better and why is this needed?
             if self.link_table.get_from_uid(self.uid,
                                             rx_packet.header.address).in_range():
-                logging.debug(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
+                logging.info(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
                 self.route.update(rx_packet.header.address,
                                   self.link_table.get_from_uid(self.uid,
                                                                rx_packet.header.address).snr(),
                                   rx_packet.header.cumulative_lqi + self.link_table.get_from_uid(self.uid,
                                                                                                  rx_packet.header.address).lqi(),
                                   rx_packet.header.hops)
-                logging.debug(f"{self.uid}\r\n{self.route}")
+                logging.info(f"{self.uid}\r\n{self.route}")
 
         if rx_packet.header.uid in self.messages_seen:
-            logging.debug(
+            logging.info(
                 f"{self.uid}\tPacket already processed {rx_packet.header.uid}")
             return False
         else:
@@ -505,7 +505,7 @@ class Node:
 
             elif rx_packet.is_routed() and rx_packet.header.address == self.uid:
                 packet_for_us = True
-                logging.debug(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
+                logging.info(f"{self.uid}\tRx packet from {rx_packet.payload.own_data.src} {rx_packet}")
                 # update tx timer
                 self.messages_for_me.append(rx_packet)
                 if self.type == NodeType.SENSOR:
@@ -553,6 +553,13 @@ class Node:
 
     def energy(self):
         return self.energy_mJ
+
+    def latency(self):
+        latencies = []
+        for payload in self.own_payloads_arrived_at_gateway:
+            latencies.append(payload.arrived_at - payload.sent_at)
+
+        return latencies
 
     def plot_states(self, axis=None, plot_labels=True):
         import matplotlib.pyplot as plt

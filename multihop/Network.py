@@ -13,6 +13,7 @@ import math
 from operator import methodcaller
 import networkx as nx
 import pickle
+from collections.abc import Iterable
 
 class Network:
     def __init__(self, **kwargs):
@@ -284,10 +285,18 @@ class Network:
                         hops = route["hops"]
                     else: # If no route is yet found by multihop protocol, find location in networkx
                         hops = len(nx.shortest_path(self.link_table.network, source=0, target=node.uid))
-                    if data.get(hops, None) is None:
-                        data[hops] = [method(node)]
+
+                    ret = method(node)
+                    if isinstance(ret, Iterable):
+                        if data.get(hops, None) is None:
+                            data[hops] = ret
+                        else:
+                            data[hops].extend(ret)
                     else:
-                        data[hops].append(method(node))
+                        if data.get(hops, None) is None:
+                            data[hops] = [ret]
+                        else:
+                            data[hops].append(ret)
 
         data = dict(sorted(data.items()))
 
