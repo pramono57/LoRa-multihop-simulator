@@ -28,6 +28,8 @@ class TxTimer:
                                settings.TX_AGGREGATION_TIMER_STEP_UP * settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
             self.backoff_min = settings.TX_AGGREGATION_TIMER_NOMINAL - \
                                settings.TX_AGGREGATION_TIMER_STEP_DOWN * settings.TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN
+            if self.backoff_min < 0:
+                self.backoff = 0
         elif type is TimerType.SENSE:
             self.backoff = settings.MEASURE_INTERVAL_S
         elif type is TimerType.ROUTE_DISCOVERY:

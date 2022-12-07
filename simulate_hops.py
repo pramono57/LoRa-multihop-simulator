@@ -8,7 +8,7 @@ import random
 random.seed(5555)
 np.random.seed(19680801)
 
-network = Network(shape="circles", size_x=200, size_y=200, density=1000, size_random=0)
+network = Network(shape="matrix", size_x=62, size_y=38, n_x=4, n_y=4, size_random=3)
 network.plot_network()
 
 network.run(60*30)
