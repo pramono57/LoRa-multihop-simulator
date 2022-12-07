@@ -25,24 +25,25 @@ SHADOWING_SIGMA: 11.25
 SNR_MAX: 30
 
 # GATEWAY SPECIFIC PARAMS
-ROUTE_DISCOVERY_S: {{60*60*24}}        # period of transmitting a new beacon for routing
+ROUTE_DISCOVERY_S: {{60*60*6}}        # period of transmitting a new beacon for routing
 GW_BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
 
 # SENSOR NODE SPECIFIC PARAMS
-MEASURE_INTERVAL_S: {{60*3}}          # how freq. a measurement is taken by the sensor node
+MEASURE_INTERVAL_S: {{60*30}}          # how freq. a measurement is taken by the sensor node
 MEASURE_DURATION_S: 0.02           # how long takes a measurement
+MEASURE_PAYLOAD_SIZE_BYTE: 12
 
-MAX_BUF_SIZE_BYTE: 16
+MAX_BUF_SIZE_BYTE: 128
 
-MAX_SEEN_PACKETS: 64
+MAX_SEEN_PACKETS: 32
 MAX_ROUTE_SIZE: 8
 
 # timer set when first data in buffer (sense or DL)
-TX_AGGREGATION_TIMER_NOMINAL: 180
+TX_AGGREGATION_TIMER_NOMINAL: {{15*60}}
 TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [90, 90]
 TX_AGGREGATION_TIMER_STEP_UP: 0     # update tx-data-timer when a msg has been received
 TX_AGGREGATION_TIMER_STEP_DOWN: 0
-TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN: 6     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN: 10     # update tx-data-timer when a msg has been received
 TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP: 6
 
 # timer set when rx-ed beacon

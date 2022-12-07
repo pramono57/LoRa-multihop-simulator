@@ -155,13 +155,15 @@ class Message:
 
     def hop(self, node):
         self.header.hop()
-        #self.payload.own_data.hop(node)
+        if self.is_route_discovery():
+            self.payload.own_data.hop(node)
         for p in self.payload.forwarded_data:
             p.hop(node)
 
     def copy(self):
         cpy = Message(self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,
                       self.payload.own_data.src, self.payload.own_data.data, self.payload.own_data.src_node, self.payload.forwarded_data)
+        cpy.payload.own_data.trace = self.payload.own_data.trace.copy()
         cpy.header.uid = self.header.uid
         return cpy
 

@@ -12,6 +12,7 @@ import simpy
 import math
 from operator import methodcaller
 import networkx as nx
+import pickle
 
 class Network:
     def __init__(self, **kwargs):
@@ -313,4 +314,31 @@ class Network:
 
         return payloads_received/payloads_sent
 
+    def plot_aggregation_timer_values(self, v):
+        import matplotlib.pyplot as plt
+        data = {}
+        for node in self.nodes:
+            uid = node.uid
+
+            hops = 0
+            route = node.route.find_best()
+            if route is not None:
+                hops = route["hops"]
+            else:  # If no route is yet found by multihop protocol, find location in networkx
+                hops = len(nx.shortest_path(self.link_table.network, source=0, target=node.uid))
+
+            data[uid] = {
+                "hops": hops,
+                "aggregation_timer_times": node.aggregation_timer_times,
+                "aggregation_timer_values": node.aggregation_timer_values,
+            }
+
+        with open(f"results/aggregation_timer_{v}.pickle", "wb") as handle:
+            pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        plt.figure()
+        for uid, node in data.items():
+            hops = node['hops']
+            plt.plot(node["aggregation_timer_times"], node["aggregation_timer_values"], label=f"uid {uid}, hops {hops}")
+        plt.show()
 

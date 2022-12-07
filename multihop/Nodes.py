@@ -14,6 +14,7 @@ import simpy
 import math
 import logging
 
+
 class GatewayState(IntEnum):
     STATE_INIT = auto()
     STATE_ROUTE_DISCOVERY = auto()
@@ -102,6 +103,9 @@ class Node:
         self.sense_timer = None
         self.timers_setup()
 
+        self.aggregation_timer_values = []
+        self.aggregation_timer_times = []
+
         self.sense_until = None
 
         self.position = _position
@@ -169,7 +173,7 @@ class Node:
             self.tx_aggregation_timer.start(restart=False)
             self.sense_timer.start()
 
-            self.data_buffer.extend(self.application_counter.to_bytes(2, 'big'))
+            self.data_buffer.extend(self.application_counter.to_bytes(settings.MEASURE_PAYLOAD_SIZE_BYTE, 'big'))
             self.application_counter = (self.application_counter + 1) % 65535
 
     def check_transmit(self):
@@ -295,7 +299,16 @@ class Node:
 
         # Collision did not happen during RX
         if rx_message is not None:
-            packet_for_us = self.handle_rx_msg(rx_message)
+            in_range = False
+            if rx_message.payload.own_data.src == self.uid:
+                in_range = True
+            if rx_message.is_routed():
+                in_range = self.link_table.get_from_uid(rx_message.payload.own_data.src, self.uid).in_range()
+            elif rx_message.is_route_discovery():
+                in_range = self.link_table.get_from_uid(rx_message.header.address, self.uid).in_range()
+
+            if in_range:
+                packet_for_us = self.handle_rx_msg(rx_message)
 
         return packet_for_us
 
@@ -348,6 +361,11 @@ class Node:
             logging.debug(
                 f"{self.uid}\t Sending packet {self.message_in_tx.header.uid} with size: {self.message_in_tx.size()} bytes")
             logging.debug(f"{self.uid}\tTx packet to {self.message_in_tx.header.address} {self.message_in_tx}")
+
+            if self.message_in_tx.is_routed() and len(self.message_in_tx.payload.forwarded_data) == 0:
+                self.tx_aggregation_timer.step_down()
+                self.aggregation_timer_values.append(self.tx_aggregation_timer.backoff)
+                self.aggregation_timer_times.append(self.env.now)
 
             # Sent statistics
             self.messages_sent.append(self.message_in_tx)
@@ -493,6 +511,10 @@ class Node:
                 if self.type == NodeType.SENSOR:
                     self.tx_aggregation_timer.start(restart=False)
                     self.tx_aggregation_timer.step_up()  # Is only applied for next start
+
+                    self.aggregation_timer_values.append(self.tx_aggregation_timer.backoff)
+                    self.aggregation_timer_times.append(self.env.now)
+
                     self.forwarded_mgs_buffer.append(rx_packet)
                 elif self.type == NodeType.GATEWAY:
                     rx_packet.arrived_at_gateway()

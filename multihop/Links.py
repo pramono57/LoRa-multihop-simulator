@@ -20,7 +20,8 @@ class LinkTable:
                         self.network.add_node(node1.uid, pos=(node1.position.x, node1.position.y))
                         self.network.add_node(node2.uid, pos=(node2.position.x, node2.position.y))
                         if _link_table[node2.uid].in_range():
-                            w = 0.5 + _link_table[node2.uid].rss() - settings.LORA_SENSITIVITY
+                            # TODO: something is wrong here, some links are not depicted that should!
+                            w = 1 + _link_table[node2.uid].rss() - settings.LORA_SENSITIVITY
                             self.network.add_edge(node1.uid, node2.uid, weight=w)
             self.link_table[node1.uid] = _link_table
 
