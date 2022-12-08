@@ -14,6 +14,7 @@ from operator import methodcaller
 import networkx as nx
 import pickle
 from collections.abc import Iterable
+from matplotlib import mlab
 
 class Network:
     def __init__(self, **kwargs):
@@ -302,15 +303,23 @@ class Network:
 
         return data
 
-    def plot_hops_statistic(self, stat):
+    def plot_hops_statistic(self, stat, type="boxplot"):
         import matplotlib.pyplot as plt
 
         data = self.hops_statistic(stat)
 
-        fig = plt.figure()
-        labels, pltdata = [*zip(*data.items())]  # 'transpose' items to parallel key, value lists
-        plt.boxplot(pltdata)
-        plt.xticks(range(1, len(labels) + 1), labels)
+        fig, ax = plt.subplots()
+        if type == "boxplot":
+            labels, pltdata = [*zip(*data.items())]  # 'transpose' items to parallel key, value lists
+            plt.boxplot(pltdata)
+            plt.xticks(range(1, len(labels) + 1), labels)
+            ax.set_ylabel(stat)
+        elif type == "cdf":
+            for hop_count, x in data.items():
+                n, bins, patches = ax.hist(np.sort(x), density=True, histtype='step', cumulative=True, label=hop_count)
+                patches[0].set_xy(patches[0].get_xy()[:-1])
+            ax.set_xlabel(stat)
+            ax.legend()
         plt.show(block=False)
 
     def pdr(self):
