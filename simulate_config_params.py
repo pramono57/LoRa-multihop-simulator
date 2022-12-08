@@ -11,9 +11,6 @@ from multihop.config import settings
 from multihop.utils import merge_data
 from multihop.preambles import preambles
 
-from multiprocessing import Pool
-
-
 def run_helper(args):
     logging.info("Running network")
     _network = Network(settings=args["settings"], map=args["map"])

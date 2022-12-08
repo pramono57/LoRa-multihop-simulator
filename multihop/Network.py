@@ -26,7 +26,7 @@ class Network:
         if s is not None:
             self.settings = s
         else:
-            from config import settings as settings_from_file
+            from .config import settings as settings_from_file
             self.settings = settings_from_file
 
         # Copy network

@@ -4,83 +4,99 @@ import random
 import pandas as pd
 import logging
 import sys
+import copy
+import multiprocessing as mp
 
 from multihop.config import settings
 from multihop.utils import data_to_df
 from multihop.preambles import preambles
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
-random.seed(9999)
-np.random.seed(9999)
+def run_helper(args):
+    logging.info("Running network")
+    _network = Network(settings=args["settings"], map=args["map"])
+    _network.run()
+    return {
+        "settings": _network.settings,
 
-# DF save settings
-filename = "results/monte_carlo_measure_aggregation.csv"
-
-# Scenario settings
-scenario_settings = [
-    {
-        "name": "MEASURE_INTERVAL_S",
-        "min": 2 * 60,
-        "max": 60 * 60,
-        "unit": 60
-    }, {
-        "name": "TX_AGGREGATION_TIMER_NOMINAL",
-        "min": 2 * 60,
-        "max": 60 * 60,
-        "unit": 60
+        "pdr": _network.hops_statistic("pdr"),
+        "plr": _network.hops_statistic("plr"),
+        "aggregation_efficiency": _network.hops_statistic("aggregation_efficiency"),
+        "energy": _network.hops_statistic("energy"),
+        "latency": _network.hops_statistic("energy")
     }
-]
-number_of_scenarios = 2
 
-each_time = 1  # Run each scenario 10 times
-run_time = 60 * 60  # Simulate for 1 day: 60*60*24
 
-# Generate scenarios
-scenarios = []
-for i in range(0, number_of_scenarios):
-    scenario = {}
-    for setting in scenario_settings:
-        scenario[setting["name"]] = round(np.random.uniform(setting["min"], setting["max"])
-                                          / setting["unit"]) * setting["unit"]
-    scenarios.append(scenario)
+if __name__ == "__main__":
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-# Generate network
-network = Network(shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
-network.plot_network()
+    random.seed(9999)
+    np.random.seed(9999)
 
-result = pd.DataFrame()
+    # DF save settings
+    filename = "results/monte_carlo_measure_aggregation.csv"
 
-logging.info("Start simulation")
+    # Scenario settings
+    scenario_settings = [
+        {
+            "name": "MEASURE_INTERVAL_S",
+            "min": 2 * 60,
+            "max": 60 * 60,
+            "unit": 60
+        }, {
+            "name": "TX_AGGREGATION_TIMER_NOMINAL",
+            "min": 2 * 60,
+            "max": 60 * 60,
+            "unit": 60
+        }
+    ]
+    number_of_scenarios = 2
 
-for i_s, scenario in enumerate(scenarios):
+    each_time = 1  # Run each scenario 10 times
 
-    # Set settings from scenario
-    for setting_name, setting_value in scenario.items():
-        settings.update({setting_name: setting_value})
+    # Generate network
+    network = Network(settings=settings, shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
+    map = network.get_node_map()
 
-    logging.info(f"Simulating for  {i_s}")
+    pool = mp.Pool(math.floor(mp.cpu_count() / 2))
 
-    random.seed(5555)
-    np.random.seed(5555)
+    arg_list = []
+    result = pd.DataFrame()
 
-    for r in range(0, each_time):
-        network = network.copy()
-        network.run(run_time)
+    # Generate settings
+    for i in range(0, number_of_scenarios):
+        _settings = copy.deepcopy(settings)
 
-        df = data_to_df({"pdr": network.hops_statistic("pdr"),
-                         "plr": network.hops_statistic("plr"),
-                         "aggregation_efficiency": network.hops_statistic("aggregation_efficiency"),
-                         "energy": network.hops_statistic("energy")})
+        # Loop over all variable settings and change them
+        for setting in scenario_settings:
+            _settings[setting["name"]] = round(np.random.uniform(setting["min"], setting["max"])
+                                               / setting["unit"]) * setting["unit"]
 
-        for setting_name, setting_value in scenario.items():
-            df[setting_name] = [setting_value] * len(df)
+        # Make sure preamble is configured at optimum
+        _settings.PREAMBLE_DURATION_S = preambles[settings.LORA_SF][settings.MEASURE_INTERVAL_S]
+
+        # Do the same simulation a number of times and append to lists
+        for r in range(0, each_time):
+            arg_list.append({"map": map, "settings": _settings})
+
+    logging.info("Starting simulation pool")
+    results = pool.map(func=run_helper, iterable=arg_list)
+
+    for _result in results:
+        df = data_to_df({"pdr": _result["pdr"],
+                         "plr": _result["plr"],
+                         "aggregation_efficiency": _result["aggregation_efficiency"],
+                         "energy": _result["energy"],
+                         "latency": _result["latency"]})
+
+        for scenario in scenario_settings:
+            df[scenario["name"]] = [_result["settings"][scenario["name"]]] * len(df)
 
         result = pd.concat([result, df], ignore_index=True)
 
-logging.info("Simulation done")
+    logging.info("Simulation done")
 
-result.to_csv(filename)
-logging.info("Written to file")
+    result.to_csv(filename)
+    logging.info("Written to file")
 
-print("test")
+    print("test")

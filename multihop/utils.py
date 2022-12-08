@@ -29,9 +29,8 @@ def merge_data(one, two):
 
 
 def data_to_df(data_list):
-    dic = {}
+    dic = {"hops": []}
 
-    dic["hops"] = []
     for name, value in data_list.items():
         dic[name] = []
 
