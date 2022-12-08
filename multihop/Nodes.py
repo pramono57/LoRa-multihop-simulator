@@ -40,7 +40,7 @@ class NodeState(Enum):
 
 
 def power_of_state(settings, s: NodeState):
-    if s is NodeState.STATE_INIT: return 0 #TODO
+    if s is NodeState.STATE_INIT: return 0
     if s is NodeState.STATE_CAD: return settings.POWER_CAD_CYCLE_mW
     if s is NodeState.STATE_RX: return settings.POWER_RX_mW
     if s is NodeState.STATE_TX: return settings.POWER_TX_mW
@@ -53,11 +53,11 @@ def power_of_state(settings, s: NodeState):
 
 
 class Node:
-    def __init__(self, env: simpy.Environment, settings, _id, _position, _type):
+    def __init__(self, env: simpy.Environment, _settings, _id, _position, _type):
         self.type = _type
 
         self.env = env
-        self.settings = settings
+        self.settings = _settings
 
         # Statistics
         self.collisions = []
@@ -82,7 +82,7 @@ class Node:
         self.data_buffer = []
         self.forwarded_mgs_buffer = []
         self.route_discovery_forward_buffer = None
-        self.messages_seen = collections.deque(maxlen=self.settings.MAX_SEEN_PACKETS) #TODO
+        self.messages_seen = collections.deque(maxlen=self.settings.MAX_SEEN_PACKETS)
 
         # State vars
         self.done_tx = 0
@@ -96,6 +96,9 @@ class Node:
         self.state = None
         self.energy_mJ = 0
         self.time_to_sense = None
+        self.time_spent_in = {}
+        for state in NodeState:
+            self.time_spent_in[state.name] = 0
 
         # Timers
         self.tx_collision_timer = None
@@ -119,10 +122,10 @@ class Node:
         # Payload
         self.application_counter = 0
 
-    def add_meta(self, settings, nodes, link_table):
+    def add_meta(self, _settings, nodes, link_table):
         self.nodes = nodes
         self.link_table = link_table
-        self.settings = settings
+        self.settings = _settings
 
     def state_change(self, state_to):
         if state_to is self.state and state_to is not NodeState.STATE_SLEEP:
@@ -134,6 +137,7 @@ class Node:
         if state_to is not self.state:
             if len(self.states_time) > 0:
                 self.energy_mJ += (self.env.now - self.states_time[-1]) * power_of_state(self.settings, self.state)
+                self.time_spent_in[self.state.name] += (self.env.now - self.states_time[-1])
 
             self.state = state_to
             self.states.append(state_to)
@@ -194,7 +198,6 @@ class Node:
             if self.tx_collision_timer.is_expired():
                 yield self.env.process(self.tx())
                 self.tx_collision_timer.reset()
-                #
 
             # elif to ensure beacon TX is not directly followed by a data TX
             # TODO ensure beacon TX does not throttle data TX
@@ -315,8 +318,6 @@ class Node:
         return packet_for_us
 
     def tx(self, route_discovery: bool = False):
-        # TODO do CAD before, and schedule TX for next time if channel is not free
-
         if self.route_discovery_forward_buffer is not None:
             route_discovery = True
             self.message_in_tx = self.route_discovery_forward_buffer
@@ -556,6 +557,12 @@ class Node:
 
     def energy(self):
         return self.energy_mJ
+
+    def energy_per_state(self):
+        ret = {}
+        for state in NodeState:
+            ret[state.name] = self.time_spent_in[state.name] * power_of_state(self.settings, state)
+        return ret
 
     def latency(self):
         latencies = []

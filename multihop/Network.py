@@ -15,6 +15,7 @@ import pickle
 from collections.abc import Iterable
 from matplotlib import mlab
 import copy
+import sys
 
 class Network:
     def __init__(self, **kwargs):
@@ -306,7 +307,7 @@ class Network:
         ax[0].set_yticks([0, 1, 2, 3, 4, 5, 6], ["INIT", "ZZZ", "CAD", "RX", "SNS", "P_TX", "TX"])
         plt.show(block=False)
 
-    def hops_statistic(self, stat):
+    def hops_statistic(self, stat, **kwargs):
         method = methodcaller(stat)
 
         data = {}
@@ -332,17 +333,37 @@ class Network:
                         else:
                             data[hops].append(ret)
 
+        relative = kwargs.get("relative")
+        if relative == "min":
+            _min = sys.maxsize
+            for hops, l in data.items():
+                m = min(l)
+                if m < _min:
+                    _min = m
+            for hops, l in data.items():
+                data[hops] = [x / _min for x in l]
+        elif relative == "max":
+            _max = 0
+            for hops, l in data.items():
+                m = max(l)
+                if m > _max:
+                    _max = m
+            for hops, l in data.items():
+                data[hops] = [x / _max for x in l]
+
         data = dict(sorted(data.items()))
 
         return data
 
-    def plot_hops_statistic(self, stat, type="boxplot"):
+    def plot_hops_statistic(self, stat, **kwargs):
         import matplotlib.pyplot as plt
 
-        data = self.hops_statistic(stat)
+        data = self.hops_statistic(stat, **kwargs)
+
+        type = kwargs.get("type")
 
         fig, ax = plt.subplots()
-        if type == "boxplot":
+        if type == "boxplot" or type is None:
             labels, pltdata = [*zip(*data.items())]  # 'transpose' items to parallel key, value lists
             plt.boxplot(pltdata)
             plt.xticks(range(1, len(labels) + 1), labels)
@@ -391,4 +412,50 @@ class Network:
         for uid, node in data.items():
             hops = node['hops']
             plt.plot(node["aggregation_timer_times"], node["aggregation_timer_values"], label=f"uid {uid}, hops {hops}")
+        plt.show()
+
+    def hops_statistic_energy_per_state(self, normalized=True):
+        data = {}
+        for node in self.nodes:
+            if node.type == NodeType.SENSOR:
+                if node.route is not None:
+                    route = node.route.find_best()
+                    hops = 0
+                    if route is not None:
+                        hops = route["hops"]
+                    else:  # If no route is yet found by multihop protocol, find location in networkx
+                        hops = len(nx.shortest_path(self.link_table.network, source=0, target=node.uid))
+
+                    ret = node.energy_per_state()
+                    if normalized:
+                        sum = 0
+                        for state, value in ret.items():
+                            sum += value
+
+                        for state, value in ret.items():
+                            ret[state] = value/sum
+
+                    if hops not in data:
+                        data[hops] = {}
+                        for state in NodeState:
+                            data[hops][state.name] = []
+                    for state in NodeState:
+                        data[hops][state.name].append(ret[state.name])
+        return data
+
+    def plot_hops_statistic_energy_per_state(self, normalized=True):
+        data = self.hops_statistic_energy_per_state(normalized)
+
+        import matplotlib.pyplot as plt
+        plt.figure()
+        figure, axis = plt.subplots(1, len(data))
+
+        for hop, d in data.items():
+            pie_values = []
+            pie_labels = []
+            for state, l in d.items():
+                pie_values.append(np.average(l))
+                pie_labels.append(state)
+            axis[hop].pie(np.array(pie_values), labels=pie_labels)
+
         plt.show()
