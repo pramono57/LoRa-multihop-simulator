@@ -1,5 +1,4 @@
 from .utils import *
-from .config import settings
 from .Timers import TxTimer, TimerType
 from .Packets import Message, MessageType
 from .Links import LinkTable
@@ -15,6 +14,7 @@ import networkx as nx
 import pickle
 from collections.abc import Iterable
 from matplotlib import mlab
+import copy
 
 class Network:
     def __init__(self, **kwargs):
@@ -22,11 +22,19 @@ class Network:
         self.simpy_env = simpy.Environment()
         self.link_table = None
 
+        s = kwargs.get("settings", None)
+        if s is not None:
+            self.settings = s
+        else:
+            from config import settings
+            self.settings = settings
+
         # Copy network
         nw = kwargs.get("network", None)
         if nw is not None:
             for node in nw.nodes:
                 self.nodes.append(Node(self.simpy_env,
+                                       self.settings,
                                        node.uid,
                                        Position(node.position.x, node.position.y),
                                        node.type))
@@ -46,7 +54,7 @@ class Network:
 
             density = kwargs.get('density', None)  # Density: how many nodes per km2
             if density is not None:
-                n_x = round(math.sqrt(density)/1000*size_x)
+                n_x = round(math.sqrt(density) / 1000 * size_x)
                 n_y = round(math.sqrt(density) / 1000 * size_y)
 
             else:
@@ -68,29 +76,36 @@ class Network:
             if g_y is None:
                 g_y = 0
 
-            self.nodes.append(Node(self.simpy_env, 0, Position(g_x, g_y), NodeType.GATEWAY))
+            self.nodes.append(Node(self.simpy_env, self.settings, 0, Position(g_x, g_y), NodeType.GATEWAY))
 
             if positioning == "random":
-                for x in range(1, n+1):
-                    self.nodes.append(Node(self.simpy_env, x, Position(*np.random.uniform(-size_x/2, size_y/2, size=2)), NodeType.SENSOR))
+                for x in range(1, n + 1):
+                    self.nodes.append(
+                        Node(self.simpy_env, x, Position(*np.random.uniform(-size_x / 2, size_y / 2, size=2)),
+                             NodeType.SENSOR))
 
             elif positioning == "line":
                 if n == 1:
-                    self.nodes.append(Node(self.simpy_env, 1, Position(size_x, size_y), NodeType.SENSOR))
+                    self.nodes.append(Node(self.simpy_env, self.settings, 1, Position(size_x, size_y), NodeType.SENSOR))
                 else:
-                    for x in range(1, n+1):
-                        self.nodes.append(Node(self.simpy_env, x,
-                                               Position(-size_x/2+(x-1)*size_x/n + np.random.uniform(-rnd/2, rnd),
-                                                        -size_y/2+(x-1)*size_y/n + np.random.uniform(-rnd/2, rnd)),
+                    for x in range(1, n + 1):
+                        self.nodes.append(Node(self.simpy_env, self.settings, x,
+                                               Position(-size_x / 2 + (x - 1) * size_x / n + np.random.uniform(-rnd / 2,
+                                                                                                               rnd),
+                                                        -size_y / 2 + (x - 1) * size_y / n + np.random.uniform(-rnd / 2,
+                                                                                                               rnd)),
                                                NodeType.SENSOR))
 
             elif positioning == "matrix":
                 uid = 1
                 for y in range(0, n_y):
                     for x in range(0, n_x):
-                        self.nodes.append(Node(self.simpy_env, uid,
-                                               Position(-size_x / 2 + x * size_x / (n_x - 1) + np.random.uniform(-rnd/2, rnd),
-                                                        -size_y / 2 + y * size_y / (n_y - 1) + np.random.uniform(-rnd/2, rnd)),
+                        self.nodes.append(Node(self.simpy_env, self.settings, uid,
+                                               Position(
+                                                   -size_x / 2 + x * size_x / (n_x - 1) + np.random.uniform(-rnd / 2,
+                                                                                                            rnd),
+                                                   -size_y / 2 + y * size_y / (n_y - 1) + np.random.uniform(-rnd / 2,
+                                                                                                            rnd)),
                                                NodeType.SENSOR))
                         uid += 1
 
@@ -100,23 +115,23 @@ class Network:
                 center_x = 0
                 center_y = 0
 
-                n_circles = math.ceil(n_x/2+1)
+                n_circles = math.ceil(n_x / 2 + 1)
                 n_per_circle = 0
                 if positioning == "circles-equal":
                     n_per_circle = n_y
                     n_circles = n_x
 
                 total_area = 0
-                for x in range(1, n_circles+1):
-                    a = size_x/n_x*x
-                    b = size_x/n_x*x
+                for x in range(1, n_circles + 1):
+                    a = size_x / n_x * x
+                    b = size_x / n_x * x
 
                     total_area += math.pi * a * b
 
                 carry = 0
-                for x in range(1, n_circles+1):
-                    a = size_x/n_x*x
-                    b = size_x/n_x*x
+                for x in range(1, n_circles + 1):
+                    a = size_x / n_x * x
+                    b = size_x / n_x * x
 
                     area = math.pi * a * b
                     if positioning == "circles":
@@ -124,26 +139,26 @@ class Network:
                         if n_per_circle < 4:
                             carry = 4 - n_per_circle
                             n_per_circle = 4
-                        elif n_per_circle > 4+carry:
+                        elif n_per_circle > 4 + carry:
                             n_per_circle -= carry
                             carry = 0
 
                     start_angle = 0
                     if positioning == "circles-equal":
-                        start_angle = 360/n_per_circle/2*x
+                        start_angle = 360 / n_per_circle / 2 * x
                     elif positioning == "circles":
                         start_angle = 360 / n_per_circle
                         # start_angle = 360/n_per_circle/(x % 2 + 1)
 
                     for c in range(0, n_per_circle):
                         angle = (start_angle + 360 / n_per_circle * c) % 360
-                        _x = a * b / math.sqrt(b**2 + a**2 * (math.tan(math.radians(angle)))**2)
+                        _x = a * b / math.sqrt(b ** 2 + a ** 2 * (math.tan(math.radians(angle))) ** 2)
                         if 270 >= angle > 90:
                             _x = -_x
                         _y = _x * math.tan(math.radians(angle))
-                        self.nodes.append(Node(self.simpy_env, uid,
-                                               Position(_x + np.random.uniform(-rnd/2, rnd),
-                                                        _y + np.random.uniform(-rnd/2, rnd)),
+                        self.nodes.append(Node(self.simpy_env, self.settings, uid,
+                                               Position(_x + np.random.uniform(-rnd / 2, rnd),
+                                                        _y + np.random.uniform(-rnd / 2, rnd)),
                                                NodeType.SENSOR))
                         if uid == 36:
                             print("trouble")
@@ -152,9 +167,9 @@ class Network:
 
             elif positioning == "funnel":
                 levels = kwargs.get('levels', None)
-                d = math.sqrt(size_x**2 + size_y**2)/len(levels)
+                d = math.sqrt(size_x ** 2 + size_y ** 2) / len(levels)
                 i = 1
-                base_angle = math.degrees(math.atan(size_y/size_x))
+                base_angle = math.degrees(math.atan(size_y / size_x))
                 for level, n_level in enumerate(levels):
 
                     circle_x = 0
@@ -165,39 +180,41 @@ class Network:
                     # circle_y = d * level * math.sin(math.radians(base_angle))
                     # circle_r = d
 
-                    angle_viewport = min(180, 90 / (2*max(1, level))+n_level*5)
+                    angle_viewport = min(180, 90 / (2 * max(1, level)) + n_level * 5)
                     if n_level > 1:
-                        angle_start = -angle_viewport/2
+                        angle_start = -angle_viewport / 2
                         angle_step = angle_viewport / (n_level - 1)
                     else:
                         angle_start = 0
                         angle_step = 0
                     for j in range(0, n_level):
                         # calculating coordinates
-                        x = circle_r * math.cos(math.radians(base_angle + angle_start + j*angle_step)) + circle_x
-                        y = circle_r * math.sin(math.radians(base_angle + angle_start + j*angle_step)) + circle_y
+                        x = circle_r * math.cos(math.radians(base_angle + angle_start + j * angle_step)) + circle_x
+                        y = circle_r * math.sin(math.radians(base_angle + angle_start + j * angle_step)) + circle_y
 
-                        self.nodes.append(Node(self.simpy_env, i,
-                                               Position(x + np.random.uniform(-rnd/2, rnd),
-                                                        y + np.random.uniform(-rnd/2, rnd)),
+                        self.nodes.append(Node(self.simpy_env, self.settings, i,
+                                               Position(x + np.random.uniform(-rnd / 2, rnd),
+                                                        y + np.random.uniform(-rnd / 2, rnd)),
                                                NodeType.SENSOR))
 
                         i += 1
 
-            # recalc = self.evaluate_distances()
-            # while recalc:
-            #     recalc = self.evaluate_distances()
+            recalc = self.evaluate_distances()
+            while recalc:
+                recalc = self.evaluate_distances()
 
-        self.link_table = LinkTable(self.nodes)
-        for node in self.nodes:
-            if type(node) is Node:
-                node.add_meta(self.nodes, self.link_table)
+        self.update()
+
+    def set_settings(self, settings):
+        self.settings = settings
+        self.update()
 
     def update(self):
-        self.link_table = LinkTable(self.nodes)
+        self.link_table = LinkTable(self.settings, self.nodes)
         for node in self.nodes:
             if type(node) is Node:
-                node.add_meta(self.nodes, self.link_table)
+                node.add_meta(self.settings, self.nodes, self.link_table)
+
     def add_sensor_node(self, uid, x, y):
         self.nodes.append(Node(self.simpy_env, uid,
                                Position(x, y),
@@ -208,21 +225,21 @@ class Network:
         for node1 in self.nodes:
             for node2 in self.nodes:
                 if node1.uid is not node2.uid and node1.uid < node2.uid:
-                        d = np.sqrt(np.abs(node1.position.x - node2.position.x)**2 +
-                                    np.abs(node1.position.y - node2.position.y)**2)
-                        if d < 1:
-                            # Distance between two nodes is too small: move each node half of what is needed
-                            t = -(1-d)/2
-                            x1 = (1 - t/d) * node1.position.x + t / d * node2.position.x
-                            y1 = (1 - t/d) * node1.position.y + t / d * node2.position.y
-                            t = d+(1-d)/2
-                            x2 = (1 - t/d) * node1.position.x + t / d * node2.position.x
-                            y2 = (1 - t/d) * node1.position.y + t / d * node2.position.y
+                    d = np.sqrt(np.abs(node1.position.x - node2.position.x) ** 2 +
+                                np.abs(node1.position.y - node2.position.y) ** 2)
+                    if d < 1:
+                        # Distance between two nodes is too small: move each node half of what is needed
+                        t = -(1 - d) / 2
+                        x1 = (1 - t / d) * node1.position.x + t / d * node2.position.x
+                        y1 = (1 - t / d) * node1.position.y + t / d * node2.position.y
+                        t = d + (1 - d) / 2
+                        x2 = (1 - t / d) * node1.position.x + t / d * node2.position.x
+                        y2 = (1 - t / d) * node1.position.y + t / d * node2.position.y
 
-                            node1.position = Position(x1, y1)
-                            node2.position = Position(x2, y2)
+                        node1.position = Position(x1, y1)
+                        node2.position = Position(x2, y2)
 
-                            return True
+                        return True
 
     def rerun(self, time):
         self.simpy_env = simpy.Environment()
@@ -230,7 +247,9 @@ class Network:
             node.env = self.simpy_env
         self.run(time)
 
-    def run(self, time):
+    def run(self):
+        time = self.settings.SIMULATION_RUN_TIME
+
         # First get max hop count in total network to establish how long the simulation should be extended
         paths = self.link_table.get_all_pairs_shortest_path()
         max_hops = 0
@@ -240,12 +259,12 @@ class Network:
                 max_hops = hops
 
         # Extend simulation time
-        simulation_time = time + (max_hops * (settings.TX_AGGREGATION_TIMER_NOMINAL
-                                              + settings.TX_AGGREGATION_TIMER_STEP_UP
-                                              * settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
-                                              + settings.TX_AGGREGATION_TIMER_RANDOM[1]
-                                              + settings.TX_COLLISION_TIMER_NOMINAL
-                                              + settings.TX_COLLISION_TIMER_RANDOM[1]))
+        simulation_time = time + (max_hops * (self.settings.TX_AGGREGATION_TIMER_NOMINAL
+                                              + self.settings.TX_AGGREGATION_TIMER_STEP_UP
+                                              * self.settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
+                                              + self.settings.TX_AGGREGATION_TIMER_RANDOM[1]
+                                              + self.settings.TX_COLLISION_TIMER_NOMINAL
+                                              + self.settings.TX_COLLISION_TIMER_RANDOM[1]))
 
         # Start all nodes
         for node in self.nodes:
@@ -255,7 +274,7 @@ class Network:
         self.simpy_env.run(until=simulation_time)
 
     def copy(self):
-        return Network(network=self)
+        return Network(network=self, settings=copy.copy(settings))
 
     def plot_network(self):
         self.link_table.plot()
@@ -284,7 +303,7 @@ class Network:
                     hops = 0
                     if route is not None:
                         hops = route["hops"]
-                    else: # If no route is yet found by multihop protocol, find location in networkx
+                    else:  # If no route is yet found by multihop protocol, find location in networkx
                         hops = len(nx.shortest_path(self.link_table.network, source=0, target=node.uid))
 
                     ret = method(node)
@@ -330,7 +349,7 @@ class Network:
                 payloads_sent += len(node.own_payloads_sent)
                 payloads_received += len(node.own_payloads_arrived_at_gateway)
 
-        return payloads_received/payloads_sent
+        return payloads_received / payloads_sent
 
     def plot_aggregation_timer_values(self, v):
         import matplotlib.pyplot as plt
@@ -359,4 +378,3 @@ class Network:
             hops = node['hops']
             plt.plot(node["aggregation_timer_times"], node["aggregation_timer_values"], label=f"uid {uid}, hops {hops}")
         plt.show()
-

@@ -3,15 +3,13 @@ import random
 
 from aenum import auto, IntEnum
 
-from .config import settings
-
 
 class MessageType(IntEnum):
     TYPE_ROUTE_DISCOVERY = auto()
     TYPE_ROUTED = auto()
 
 
-def time_on_air(num_bytes):
+def time_on_air(settings, num_bytes):
     t_sym = (2.0 ** settings.LORA_SF) / settings.LORA_BANDWIDTH
     payload_symb_n_b = 8 + max(
         math.ceil(
@@ -141,12 +139,14 @@ class Message:
     [            HEADER             ][ OWN DATA ]  [                       FORWARDED MSGS                      ]
     """
 
-    def __init__(self, msg_type: MessageType, hops, lqi, dst, src, own_data, src_node, forwarded_msgs):
+    def __init__(self, settings, msg_type: MessageType, hops, lqi, dst, src, own_data, src_node, forwarded_msgs):
         self.header = MessageHeader(msg_type, hops, lqi, dst)
         self.payload = MessagePayload(src, own_data, src_node, forwarded_msgs)
 
         # Meta
         self.collided = False
+        self.settings = settings
+
     def size(self):
         size = 0
         size += self.header.size()
@@ -161,7 +161,7 @@ class Message:
             p.hop(node)
 
     def copy(self):
-        cpy = Message(self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,
+        cpy = Message(self.settings, self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,
                       self.payload.own_data.src, self.payload.own_data.data, self.payload.own_data.src_node, self.payload.forwarded_data)
         cpy.payload.own_data.trace = self.payload.own_data.trace.copy()
         cpy.header.uid = self.header.uid
@@ -169,7 +169,7 @@ class Message:
 
     def time(self):
         # return the time on air
-        return time_on_air(self.size())
+        return time_on_air(self.settings, self.size())
 
     def is_route_discovery(self):
         return self.header.type is MessageType.TYPE_ROUTE_DISCOVERY

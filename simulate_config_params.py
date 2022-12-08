@@ -4,6 +4,8 @@ import random
 import pandas as pd
 import logging
 import sys
+import copy
+import multiprocessing as mp
 
 from multihop.config import settings
 from multihop.utils import merge_data
@@ -11,86 +13,111 @@ from multihop.preambles import preambles
 
 from multiprocessing import Pool
 
-logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-monte_carlo = 1 # Run each setting 10 times
+def run_helper(_network):
+    logging.info("Running network")
+    _network.run()
+    return {
+        "settings": _network.settings,
 
-setting1 = "MEASURE_INTERVAL_S"
-values1 = [settings.MEASURE_INTERVAL_S] #60*60
+        "pdr": _network.hops_statistic("pdr"),
+        "plr": _network.hops_statistic("plr"),
+        "aggregation_efficiency": _network.hops_statistic("aggregation_efficiency"),
+        "energy": _network.hops_statistic("energy"),
+        "latency": _network.hops_statistic("energy")
+    }
 
-setting2 = "TX_AGGREGATION_TIMER_STEP_UP"
-values2 = range(30, 10*60, 30)
+if __name__ == "__main__":
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-filename = f"results/simulate_matrix_{setting1}_{setting2}.csv"
+    monte_carlo = 1  # Run each setting 10 times
 
-run_time = 60*60*48 # Simulate for 1 day: 60*60*24
+    setting1 = "MEASURE_INTERVAL_S"
+    values1 = [settings.MEASURE_INTERVAL_S]  # 60*60
 
-random.seed(5555)
-np.random.seed(5555)
-network = Network(shape="matrix", size_x=180, size_y=120, n_x=4, n_y=4, size_random=3)
-network.plot_network()
+    setting2 = "TX_AGGREGATION_TIMER_STEP_UP"
+    values2 = range(30, 70, 30)
 
-pdr = {}
-plr = {}
-aggregation_efficiency = {}
-energy = {}
+    filename = f"results/simulate_matrix_{setting1}_{setting2}.csv"
 
-logging.info("Start simulation")
+    random.seed(5555)
+    np.random.seed(5555)
+    network = Network(settings=settings, shape="matrix", size_x=180, size_y=120, n_x=4, n_y=4, size_random=3)
 
-for value2 in values2:
+    pdr = {}
+    plr = {}
+    aggregation_efficiency = {}
+    energy = {}
+    latency = {}
 
-    settings.update({setting2: value2})
+    pool = mp.Pool(math.floor(mp.cpu_count() / 2))
 
-    for value1 in values1:
-        logging.info(f"Simulating for value2 {value2}")
+    logging.info("Making list of settings and prepare for data storage")
+    networks = []
+    results = []
+    for value2 in values2:
+        for value1 in values1:
+            # Update what we're looping
+            _settings = copy.copy(settings)
+            _settings.update({setting1: value1})
+            _settings.update({setting2: value2})
 
-        random.seed(5555)
-        np.random.seed(5555)
-        settings.update({setting1: value1})
+            # Make sure preamble is configured at optimum
+            _settings.PREAMBLE_DURATION_S = preambles[settings.LORA_SF][settings.MEASURE_INTERVAL_S]
 
-        settings.PREAMBLE_DURATION_S = preambles[settings.LORA_SF][settings.MEASURE_INTERVAL_S]
+            _network = network.copy()
+            _network.set_settings(_settings)
 
-        if value2 not in pdr:
-            logging.info(f"\t Simulating for value1 {value1}")
+            # Do the same simulation a number of times and append to lists
+            for r in range(0, monte_carlo):
+                networks.append(_network)
 
-            pdr[value2] = {}
-            plr[value2] = {}
-            aggregation_efficiency[value2] = {}
-            energy[value2] = {}
+            # Prepare lists and structs for data storage
+            if value2 not in pdr:
+                pdr[value2] = {}
+                plr[value2] = {}
+                aggregation_efficiency[value2] = {}
+                energy[value2] = {}
+                latency[value2] = {}
 
-        for r in range(0, monte_carlo):
-            network = network.copy()
-            network.run(run_time)
-            network.plot_aggregation_timer_values(value2)
+    # Go simulation, go!
+    results = pool.map(func=run_helper, iterable=networks)
 
-            if value1 not in pdr[value2]:
-                pdr[value2][value1] = network.hops_statistic("pdr")
-                plr[value2][value1] = network.hops_statistic("plr")
-                aggregation_efficiency[value2][value1] = network.hops_statistic("aggregation_efficiency")
-                energy[value2][value1] = network.hops_statistic("energy")
-            else:
-                merge_data(pdr[value2][value1], network.hops_statistic("pdr"))
-                merge_data(plr[value2][value1], network.hops_statistic("plr"))
-                merge_data(aggregation_efficiency[value2][value1], network.hops_statistic("aggregation_efficiency"))
-                merge_data(energy[value2][value1], network.hops_statistic("energy"))
+    logging.info("Simulation done, now processing results")
 
-logging.info("Simulation done")
+    for result in results:
+        value2 = result.settings[setting2]
+        value1 = result.settings[setting1]
+        if value1 not in pdr[value2]:
+            pdr[value2][value1] = result["pdr"]
+            plr[value2][value1] = result["plr"]
+            aggregation_efficiency[value2][value1] = result["aggregation_efficiency"]
+            energy[value2][value1] = result["energy"]
+            latency[value2][value1] = result["latency"]
+        else:
+            merge_data(pdr[value2][value1], result["pdr"])
+            merge_data(plr[value2][value1], result["plr"])
+            merge_data(aggregation_efficiency[value2][value1], result["aggregation_efficiency"])
+            merge_data(energy[value2][value1], result["energy"])
+            merge_data(latency[value2][value1], result["latency"])
 
-df = pd.DataFrame(flatten_data(2,
-                               [pdr, plr, aggregation_efficiency, energy],
-                               [setting2, setting1, "hops", ["pdr", "plr", "aggregation_efficiency", "energy"]]))
-df.to_csv(filename)
 
-logging.info("Written to file")
 
-fig, ax = plt.subplots()
+    df = pd.DataFrame(flatten_data(2,
+                                   [pdr, plr, aggregation_efficiency, energy],
+                                   [setting2, setting1, "hops", ["pdr", "plr", "aggregation_efficiency", "energy"]]))
+    df.to_csv(filename)
 
-for key, grp in df.groupby(['hops']):
-    data = grp.groupby(setting1, as_index=False)['energy'].agg({'low': 'min', 'high': 'max', 'mean': 'mean'})
-    data.reset_index(inplace=True)
+    logging.info("Written to file")
 
-    data.plot(ax=ax, x=setting1, y='mean', label=key)
-    plt.fill_between(x=setting1, y1='low', y2='high', alpha=0.3, data=data)
+    fig, ax = plt.subplots()
 
-plt.show()
-print("The end")
+    for key, grp in df.groupby(['hops']):
+        data = grp.groupby(setting1, as_index=False)['energy'].agg({'low': 'min', 'high': 'max', 'mean': 'mean'})
+        data.reset_index(inplace=True)
+
+        data.plot(ax=ax, x=setting1, y='mean', label=key)
+        plt.fill_between(x=setting1, y1='low', y2='high', alpha=0.3, data=data)
+
+    plt.show()
+    print("The end")

@@ -1,5 +1,4 @@
 from .utils import *
-from .config import settings
 from .Timers import TxTimer, TimerType
 from .Packets import Message, MessageType
 from .Links import LinkTable
@@ -40,8 +39,8 @@ class NodeState(Enum):
     STATE_SENSING = 4, "SNS"
 
 
-def power_of_state(s: NodeState):
-    if s is NodeState.STATE_INIT: return 0
+def power_of_state(settings, s: NodeState):
+    if s is NodeState.STATE_INIT: return 0 #TODO
     if s is NodeState.STATE_CAD: return settings.POWER_CAD_CYCLE_mW
     if s is NodeState.STATE_RX: return settings.POWER_RX_mW
     if s is NodeState.STATE_TX: return settings.POWER_TX_mW
@@ -54,8 +53,11 @@ def power_of_state(s: NodeState):
 
 
 class Node:
-    def __init__(self, env: simpy.Environment, _id, _position, _type):
+    def __init__(self, env: simpy.Environment, settings, _id, _position, _type):
         self.type = _type
+
+        self.env = env
+        self.settings = settings
 
         # Statistics
         self.collisions = []
@@ -80,7 +82,7 @@ class Node:
         self.data_buffer = []
         self.forwarded_mgs_buffer = []
         self.route_discovery_forward_buffer = None
-        self.messages_seen = collections.deque(maxlen=settings.MAX_SEEN_PACKETS)
+        self.messages_seen = collections.deque(maxlen=self.settings.MAX_SEEN_PACKETS) #TODO
 
         # State vars
         self.done_tx = 0
@@ -92,7 +94,6 @@ class Node:
         # Properties
         self.uid = _id
         self.state = None
-        self.env = env
         self.energy_mJ = 0
         self.time_to_sense = None
 
@@ -118,9 +119,10 @@ class Node:
         # Payload
         self.application_counter = 0
 
-    def add_meta(self, nodes, link_table):
+    def add_meta(self, settings, nodes, link_table):
         self.nodes = nodes
         self.link_table = link_table
+        self.settings = settings
 
     def state_change(self, state_to):
         if state_to is self.state and state_to is not NodeState.STATE_SLEEP:
@@ -131,7 +133,7 @@ class Node:
         #     logging.info(f"{self.uid}\tState change: {self.state.fullname}->{state_to.fullname}")
         if state_to is not self.state:
             if len(self.states_time) > 0:
-                self.energy_mJ += (self.env.now - self.states_time[-1]) * power_of_state(self.state)
+                self.energy_mJ += (self.env.now - self.states_time[-1]) * power_of_state(self.settings, self.state)
 
             self.state = state_to
             self.states.append(state_to)
@@ -139,23 +141,23 @@ class Node:
 
     def timers_setup(self):
         # Timers
-        self.tx_collision_timer = TxTimer(self.env, TimerType.COLLISION)
+        self.tx_collision_timer = TxTimer(self.env, self.settings, TimerType.COLLISION)
         if self.type == NodeType.GATEWAY:
-            self.tx_route_discovery_timer = TxTimer(self.env, TimerType.ROUTE_DISCOVERY)
+            self.tx_route_discovery_timer = TxTimer(self.env, self.settings, TimerType.ROUTE_DISCOVERY)
         else:
             self.tx_route_discovery_timer = None
-        self.tx_aggregation_timer = TxTimer(self.env, TimerType.AGGREGATION)
-        self.sense_timer = TxTimer(self.env, TimerType.SENSE)
+        self.tx_aggregation_timer = TxTimer(self.env, self.settings, TimerType.AGGREGATION)
+        self.sense_timer = TxTimer(self.env, self.settings, TimerType.SENSE)
 
     def run(self):
-        random_wait = np.random.uniform(0, settings.MAX_DELAY_START_PER_NODE_RANDOM_S)
+        random_wait = np.random.uniform(0, self.settings.MAX_DELAY_START_PER_NODE_RANDOM_S)
         yield self.env.timeout(random_wait)
         logging.info(f"{self.uid}\tStarting node {self.uid}")
 
         self.timers_setup()  # Reset timers
 
         if self.type == NodeType.GATEWAY:
-            self.tx_route_discovery_timer.backoff = 1.1 * settings.MAX_DELAY_START_PER_NODE_RANDOM_S
+            self.tx_route_discovery_timer.backoff = 1.1 * self.settings.MAX_DELAY_START_PER_NODE_RANDOM_S
             self.tx_route_discovery_timer.start()
         else:
             self.sense_timer.start()
@@ -167,13 +169,13 @@ class Node:
         if (self.sense_until is None and self.sense_timer.is_expired()) or \
                 (self.sense_timer.is_expired() and self.env.now < self.sense_until):
             self.state_change(NodeState.STATE_SENSING)
-            yield self.env.timeout(settings.MEASURE_DURATION_S)
+            yield self.env.timeout(self.settings.MEASURE_DURATION_S)
             # schedule timer for transmit
             logging.info(f"{self.uid}\tSensing")
             self.tx_aggregation_timer.start(restart=False)
             self.sense_timer.start()
 
-            self.data_buffer.extend(self.application_counter.to_bytes(settings.MEASURE_PAYLOAD_SIZE_BYTE, 'big'))
+            self.data_buffer.extend(self.application_counter.to_bytes(self.settings.MEASURE_PAYLOAD_SIZE_BYTE, 'big'))
             self.application_counter = (self.application_counter + 1) % 65535
 
     def check_transmit(self):
@@ -181,9 +183,9 @@ class Node:
         if self.type == NodeType.GATEWAY:
             if self.tx_route_discovery_timer.is_expired():
                 self.route_discovery_forward_buffer = \
-                    Message(MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], self, [])
+                    Message(self.settings, MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], self, [])
                 yield self.env.process(self.tx())
-                self.tx_route_discovery_timer.backoff = settings.ROUTE_DISCOVERY_S
+                self.tx_route_discovery_timer.backoff = self.settings.ROUTE_DISCOVERY_S
                 self.tx_route_discovery_timer.reset()
                 #
 
@@ -209,7 +211,7 @@ class Node:
     def periodic_wakeup(self):
         while True:
             self.state_change(NodeState.STATE_SLEEP)
-            cad_interval = random(settings.CAD_INTERVAL_RANDOM_S)
+            cad_interval = random(self.settings.CAD_INTERVAL_RANDOM_S)
             yield self.env.timeout(cad_interval)
 
             cad_detected = yield self.env.process(self.cad())
@@ -333,7 +335,8 @@ class Node:
             else:
                 route = route["uid"]
 
-            self.message_in_tx = Message(MessageType.TYPE_ROUTED,
+            self.message_in_tx = Message(self.settings,
+                                         MessageType.TYPE_ROUTED,
                                          hops,
                                          0,
                                          route,
@@ -352,10 +355,10 @@ class Node:
             self.state_change(NodeState.STATE_PREAMBLE_TX)
 
             packet_time = self.message_in_tx.time()
-            self.start_tx = self.env.now + settings.PREAMBLE_DURATION_S
+            self.start_tx = self.env.now + self.settings.PREAMBLE_DURATION_S
             self.done_tx = self.start_tx + packet_time
 
-            yield self.env.timeout(settings.PREAMBLE_DURATION_S)
+            yield self.env.timeout(self.settings.PREAMBLE_DURATION_S)
 
             self.state_change(NodeState.STATE_TX)
             logging.info(
@@ -405,7 +408,7 @@ class Node:
         Depending on CAD success the node enters RX state or sleep state
         """
         self.state_change(NodeState.STATE_CAD)
-        yield self.env.timeout(settings.TIME_CAD_WAKE_S + settings.TIME_CAD_STABILIZE_S)
+        yield self.env.timeout(self.settings.TIME_CAD_WAKE_S + self.settings.TIME_CAD_STABILIZE_S)
 
         # check which nodes are now in PREAMBLE_TX state
         nodes_sending_preamble = self.get_nodes_in_state([NodeState.STATE_PREAMBLE_TX])
@@ -415,7 +418,7 @@ class Node:
                 active_nodes.append(n)
 
         # check after CAD perform, if it was transmitting during the full window
-        yield self.env.timeout(settings.TIME_CAD_PERFORM_S)
+        yield self.env.timeout(self.settings.TIME_CAD_PERFORM_S)
 
         cad_detected = False
         for n in active_nodes:
@@ -423,11 +426,11 @@ class Node:
                 # OK considered TX and we need to listen
                 cad_detected = True
                 break
-        yield self.env.timeout(settings.TIME_CAD_PROC_S)
+        yield self.env.timeout(self.settings.TIME_CAD_PROC_S)
         return cad_detected
 
     def full_buffer(self):
-        return len(self.data_buffer) > settings.MAX_BUF_SIZE_BYTE
+        return len(self.data_buffer) > self.settings.MAX_BUF_SIZE_BYTE
 
     def get_nodes_in_state(self, states):
         nodes = []
@@ -440,7 +443,7 @@ class Node:
         active_node = active_nodes[0]
         if len(active_nodes) > 1:
             # If power higher than power_threshold for all tx nodes, this one will succeed
-            power_threshold = settings.LORA_POWER_THRESHOLD  # dB
+            power_threshold = self.settings.LORA_POWER_THRESHOLD  # dB
             powers = [(a, self.link_table.get(a, self).rss()) for a in active_nodes]
             powers.sort(key=lambda tup: tup[1], reverse=True)
 

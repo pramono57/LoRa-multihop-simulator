@@ -2,8 +2,6 @@ from .utils import random
 
 from aenum import Enum, auto
 
-from .config import settings
-
 
 class TimerType(Enum):
     COLLISION = auto()
@@ -13,38 +11,40 @@ class TimerType(Enum):
 
 
 class TxTimer:
-    def __init__(self, env, type):
+    def __init__(self, env, settings, type):
         self.env = env
         self.timer = None
         self.type = type
 
+        self.settings = settings
+
         if type is TimerType.COLLISION:
-            self.backoff = self.backoff = random((settings.TX_COLLISION_TIMER_NOMINAL - settings.TX_COLLISION_TIMER_RANDOM[0], settings.TX_COLLISION_TIMER_NOMINAL + settings.TX_COLLISION_TIMER_RANDOM[1]))
+            self.backoff = self.backoff = random((self.settings.TX_COLLISION_TIMER_NOMINAL - self.settings.TX_COLLISION_TIMER_RANDOM[0], self.settings.TX_COLLISION_TIMER_NOMINAL + self.settings.TX_COLLISION_TIMER_RANDOM[1]))
             self.backoff_min = None
             self.backoff_max = None
         elif type is TimerType.AGGREGATION:
-            self.backoff = random((settings.TX_AGGREGATION_TIMER_NOMINAL - settings.TX_AGGREGATION_TIMER_RANDOM[0], settings.TX_AGGREGATION_TIMER_NOMINAL + settings.TX_AGGREGATION_TIMER_RANDOM[1]))
-            self.backoff_max = settings.TX_AGGREGATION_TIMER_NOMINAL + \
-                               settings.TX_AGGREGATION_TIMER_STEP_UP * settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
-            self.backoff_min = settings.TX_AGGREGATION_TIMER_NOMINAL - \
-                               settings.TX_AGGREGATION_TIMER_STEP_DOWN * settings.TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN
+            self.backoff = random((self.settings.TX_AGGREGATION_TIMER_NOMINAL - self.settings.TX_AGGREGATION_TIMER_RANDOM[0], self.settings.TX_AGGREGATION_TIMER_NOMINAL + self.settings.TX_AGGREGATION_TIMER_RANDOM[1]))
+            self.backoff_max = self.settings.TX_AGGREGATION_TIMER_NOMINAL + \
+                               self.settings.TX_AGGREGATION_TIMER_STEP_UP * self.settings.TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP
+            self.backoff_min = self.settings.TX_AGGREGATION_TIMER_NOMINAL - \
+                               self.settings.TX_AGGREGATION_TIMER_STEP_DOWN * self.settings.TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN
             if self.backoff_min < 0:
                 self.backoff = 0
         elif type is TimerType.SENSE:
-            self.backoff = settings.MEASURE_INTERVAL_S
+            self.backoff = self.settings.MEASURE_INTERVAL_S
         elif type is TimerType.ROUTE_DISCOVERY:
-            self.backoff = settings.ROUTE_DISCOVERY_S
+            self.backoff = self.settings.ROUTE_DISCOVERY_S
 
     def reset(self):
         self.timer = None
 
     def renew_random(self):
         if type is TimerType.COLLISION:
-            self.backoff = random((settings.TX_COLLISION_TIMER_NOMINAL - settings.TX_COLLISION_TIMER_RANDOM[0],
-                                   settings.TX_COLLISION_TIMER_NOMINAL + settings.TX_COLLISION_TIMER_RANDOM[1]))
+            self.backoff = random((self.settings.TX_COLLISION_TIMER_NOMINAL - self.settings.TX_COLLISION_TIMER_RANDOM[0],
+                                   self.settings.TX_COLLISION_TIMER_NOMINAL + self.settings.TX_COLLISION_TIMER_RANDOM[1]))
         elif type is TimerType.AGGREGATION:
-            self.backoff = random((self.backoff - settings.TX_AGGREGATION_TIMER_RANDOM[0],
-                                   self.backoff + settings.TX_AGGREGATION_TIMER_RANDOM[1]))
+            self.backoff = random((self.backoff - self.settings.TX_AGGREGATION_TIMER_RANDOM[0],
+                                   self.backoff + self.settings.TX_AGGREGATION_TIMER_RANDOM[1]))
 
     def step_up(self):
         """
@@ -53,10 +53,10 @@ class TxTimer:
         """
         if self.type is not TimerType.AGGREGATION:
             ValueError("Only Data timer can be stepped up/down")
-        new_backoff = self.backoff + settings.TX_AGGREGATION_TIMER_STEP_UP
+        new_backoff = self.backoff + self.settings.TX_AGGREGATION_TIMER_STEP_UP
         if new_backoff < self.backoff_max:
             self.backoff = new_backoff
-            self.inc_time_by(settings.TX_AGGREGATION_TIMER_STEP_UP)
+            self.inc_time_by(self.settings.TX_AGGREGATION_TIMER_STEP_UP)
         else:
             # we don't increase the timer
             self.backoff = self.backoff_max
@@ -64,7 +64,7 @@ class TxTimer:
     def step_down(self):
         if self.type is not TimerType.AGGREGATION:
             ValueError("Only Data timer can be stepped up/down")
-        new_backoff = self.backoff - settings.TX_AGGREGATION_TIMER_STEP_DOWN
+        new_backoff = self.backoff - self.settings.TX_AGGREGATION_TIMER_STEP_DOWN
         self.backoff = self.backoff_min if new_backoff < self.backoff_min else new_backoff
         # no need to step down the actual running timer
 

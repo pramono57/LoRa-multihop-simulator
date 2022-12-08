@@ -1,4 +1,3 @@
-from .config import settings
 from .utils import *
 import numpy as np
 import matplotlib
@@ -7,8 +6,9 @@ import networkx as nx
 
 
 class LinkTable:
-    def __init__(self, nodes):
+    def __init__(self, settings, nodes):
         self.network = nx.Graph()
+        self.settings = settings
 
         self.link_table = {}
         for node1 in nodes:
@@ -16,12 +16,12 @@ class LinkTable:
             for node2 in nodes:
                 if node1.uid is not node2.uid:
                     if node1.uid < node2.uid:
-                        _link_table[node2.uid] = Link(node1, node2)
+                        _link_table[node2.uid] = Link(self.settings, node1, node2)
                         self.network.add_node(node1.uid, pos=(node1.position.x, node1.position.y))
                         self.network.add_node(node2.uid, pos=(node2.position.x, node2.position.y))
                         if _link_table[node2.uid].in_range():
                             # TODO: something is wrong here, some links are not depicted that should!
-                            w = 1 + _link_table[node2.uid].rss() - settings.LORA_SENSITIVITY
+                            w = 1 + _link_table[node2.uid].rss() - self.settings.LORA_SENSITIVITY
                             self.network.add_edge(node1.uid, node2.uid, weight=w)
             self.link_table[node1.uid] = _link_table
 
@@ -78,10 +78,12 @@ class LinkTable:
 
 
 class Link:
-    def __init__(self, node1, node2):
+    def __init__(self, settings, node1, node2):
+        self.settings = settings
+
         self.node1 = node1
         self.node2 = node2
-        self._shadowing = np.random.normal(settings.SHADOWING_MU, settings.SHADOWING_SIGMA)
+        self._shadowing = np.random.normal(self.settings.SHADOWING_MU, self.settings.SHADOWING_SIGMA)
         self.used = 0
 
         self._rss = 0
@@ -89,8 +91,9 @@ class Link:
         self._distance = 0
         self._in_range = False
 
+
     def rss(self):
-        self._rss = settings.LORA_TRANSMIT_POWER - self.path_loss()
+        self._rss = self.settings.LORA_TRANSMIT_POWER - self.path_loss()
         return self._rss
 
     def distance(self):
@@ -103,7 +106,7 @@ class Link:
 
     def path_loss(self):
         shadowing = 0
-        if settings.SHADOWING_ENABLED:
+        if self.settings.SHADOWING_ENABLED:
             shadowing = self._shadowing
         return 74.85 + 2.75 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
 
@@ -112,11 +115,11 @@ class Link:
         return self._snr
 
     def in_range(self):
-        self._in_range = self.rss() > settings.LORA_SENSITIVITY
+        self._in_range = self.rss() > self.settings.LORA_SENSITIVITY
         return self._in_range
 
     def lqi(self):
-        return settings.SNR_MAX - self.snr()
+        return self.settings.SNR_MAX - self.snr()
 
     def use(self):
         self.used += 1

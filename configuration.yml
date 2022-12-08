@@ -2,6 +2,8 @@
 {% set PREAMBLE_DURATION_S = 1000/1000 %} # define variable so it can be used below
 {% set Vcc = 3.3 %}
 
+SIMULATION_RUN_TIME: {{60*60}}
+
 # LORA PHY SPECIFIC
 {% set SF = 7 %}
 {% set BW = 125 %}
