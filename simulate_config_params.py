@@ -14,8 +14,9 @@ from multihop.preambles import preambles
 from multiprocessing import Pool
 
 
-def run_helper(_network):
+def run_helper(args):
     logging.info("Running network")
+    _network = Network(settings=args["settings"], map=args["map"])
     _network.run()
     return {
         "settings": _network.settings,
@@ -27,6 +28,7 @@ def run_helper(_network):
         "latency": _network.hops_statistic("energy")
     }
 
+
 if __name__ == "__main__":
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -36,13 +38,15 @@ if __name__ == "__main__":
     values1 = [settings.MEASURE_INTERVAL_S]  # 60*60
 
     setting2 = "TX_AGGREGATION_TIMER_STEP_UP"
-    values2 = range(30, 70, 30)
+    values2 = range(30, 40, 30)
 
     filename = f"results/simulate_matrix_{setting1}_{setting2}.csv"
 
+    # Generate first network to get node positions
     random.seed(5555)
     np.random.seed(5555)
     network = Network(settings=settings, shape="matrix", size_x=180, size_y=120, n_x=4, n_y=4, size_random=3)
+    map = network.get_node_map()
 
     pdr = {}
     plr = {}
@@ -53,24 +57,21 @@ if __name__ == "__main__":
     pool = mp.Pool(math.floor(mp.cpu_count() / 2))
 
     logging.info("Making list of settings and prepare for data storage")
-    networks = []
+    arg_list = []
     results = []
     for value2 in values2:
         for value1 in values1:
             # Update what we're looping
-            _settings = copy.copy(settings)
+            _settings = copy.deepcopy(settings)
             _settings.update({setting1: value1})
             _settings.update({setting2: value2})
 
             # Make sure preamble is configured at optimum
             _settings.PREAMBLE_DURATION_S = preambles[settings.LORA_SF][settings.MEASURE_INTERVAL_S]
 
-            _network = network.copy()
-            _network.set_settings(_settings)
-
             # Do the same simulation a number of times and append to lists
             for r in range(0, monte_carlo):
-                networks.append(_network)
+                arg_list.append({"map": map, "settings": _settings})
 
             # Prepare lists and structs for data storage
             if value2 not in pdr:
@@ -81,13 +82,13 @@ if __name__ == "__main__":
                 latency[value2] = {}
 
     # Go simulation, go!
-    results = pool.map(func=run_helper, iterable=networks)
+    results = pool.map(func=run_helper, iterable=arg_list)
 
     logging.info("Simulation done, now processing results")
 
     for result in results:
-        value2 = result.settings[setting2]
-        value1 = result.settings[setting1]
+        value2 = result["settings"][setting2]
+        value1 = result["settings"][setting1]
         if value1 not in pdr[value2]:
             pdr[value2][value1] = result["pdr"]
             plr[value2][value1] = result["plr"]
@@ -100,8 +101,6 @@ if __name__ == "__main__":
             merge_data(aggregation_efficiency[value2][value1], result["aggregation_efficiency"])
             merge_data(energy[value2][value1], result["energy"])
             merge_data(latency[value2][value1], result["latency"])
-
-
 
     df = pd.DataFrame(flatten_data(2,
                                    [pdr, plr, aggregation_efficiency, energy],

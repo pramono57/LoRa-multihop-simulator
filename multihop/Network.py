@@ -26,11 +26,12 @@ class Network:
         if s is not None:
             self.settings = s
         else:
-            from config import settings
-            self.settings = settings
+            from config import settings as settings_from_file
+            self.settings = settings_from_file
 
         # Copy network
         nw = kwargs.get("network", None)
+        map = kwargs.get("map", None)
         if nw is not None:
             for node in nw.nodes:
                 self.nodes.append(Node(self.simpy_env,
@@ -38,6 +39,13 @@ class Network:
                                        node.uid,
                                        Position(node.position.x, node.position.y),
                                        node.type))
+        elif map is not None:
+            for uid, node in map.items():
+                self.nodes.append(Node(self.simpy_env,
+                                       self.settings,
+                                       uid,
+                                       Position(node["x"], node["y"]),
+                                       node["type"]))
         else:
             n_x = None
             n_y = None
@@ -209,6 +217,12 @@ class Network:
         self.settings = settings
         self.update()
 
+    def get_node_map(self):
+        map = {}
+        for node in self.nodes:
+            map[node.uid] = {"x": node.position.x, "y": node.position.y, "uid": node.uid, "type": node.type}
+        return map
+
     def update(self):
         self.link_table = LinkTable(self.settings, self.nodes)
         for node in self.nodes:
@@ -274,7 +288,7 @@ class Network:
         self.simpy_env.run(until=simulation_time)
 
     def copy(self):
-        return Network(network=self, settings=copy.copy(settings))
+        return Network(network=self, settings=copy.deepcopy(self.settings))
 
     def plot_network(self):
         self.link_table.plot()
