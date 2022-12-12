@@ -19,7 +19,11 @@ class TxTimer:
         self.settings = settings
 
         if type is TimerType.COLLISION:
-            self.backoff = self.backoff = random((self.settings.TX_COLLISION_TIMER_NOMINAL - self.settings.TX_COLLISION_TIMER_RANDOM[0], self.settings.TX_COLLISION_TIMER_NOMINAL + self.settings.TX_COLLISION_TIMER_RANDOM[1]))
+            self.backoff = self.settings.PREAMBLE_DURATION_S * \
+                           random((self.settings.TX_COLLISION_TIMER_NOMINAL -
+                                   self.settings.TX_COLLISION_TIMER_NOMINAL*self.settings.TX_COLLISION_TIMER_RANDOM[0],
+                                   self.settings.TX_COLLISION_TIMER_NOMINAL +
+                                   self.settings.TX_COLLISION_TIMER_NOMINAL*self.settings.TX_COLLISION_TIMER_RANDOM[1]))
             self.backoff_min = None
             self.backoff_max = None
         elif type is TimerType.AGGREGATION:
@@ -40,8 +44,12 @@ class TxTimer:
 
     def renew_random(self):
         if type is TimerType.COLLISION:
-            self.backoff = random((self.settings.TX_COLLISION_TIMER_NOMINAL - self.settings.TX_COLLISION_TIMER_RANDOM[0],
-                                   self.settings.TX_COLLISION_TIMER_NOMINAL + self.settings.TX_COLLISION_TIMER_RANDOM[1]))
+            self.backoff = self.settings.PREAMBLE_DURATION_S * \
+                           random((self.settings.TX_COLLISION_TIMER_NOMINAL -
+                                   self.settings.TX_COLLISION_TIMER_NOMINAL * self.settings.TX_COLLISION_TIMER_RANDOM[0],
+                                   self.settings.TX_COLLISION_TIMER_NOMINAL +
+                                   self.settings.TX_COLLISION_TIMER_NOMINAL * self.settings.TX_COLLISION_TIMER_RANDOM[1]))
+
         elif type is TimerType.AGGREGATION:
             self.backoff = random((self.backoff - self.settings.TX_AGGREGATION_TIMER_RANDOM[0],
                                    self.backoff + self.settings.TX_AGGREGATION_TIMER_RANDOM[1]))

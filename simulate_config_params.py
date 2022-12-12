@@ -34,8 +34,8 @@ if __name__ == "__main__":
     setting1 = "MEASURE_INTERVAL_S"
     values1 = [settings.MEASURE_INTERVAL_S]  # 60*60
 
-    setting2 = "TX_AGGREGATION_TIMER_STEP_UP"
-    values2 = range(30, 40, 30)
+    setting2 = "TX_COLLISION_TIMER_NOMINAL"
+    values2 = range(1, 100, 10)
 
     filename = f"results/simulate_matrix_{setting1}_{setting2}.csv"
 
