@@ -51,7 +51,7 @@ if __name__ == "__main__":
     energy = {}
     latency = {}
 
-    pool = mp.Pool(math.floor(mp.cpu_count() / 2))
+    pool = mp.Pool(math.floor(mp.cpu_count() / 3))
 
     logging.info("Making list of settings and prepare for data storage")
     arg_list = []

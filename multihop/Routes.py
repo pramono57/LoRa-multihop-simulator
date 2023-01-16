@@ -1,29 +1,40 @@
 from .config import settings
 from tabulate import tabulate
-
+import sys
 
 class Route:
     def __init__(self):
         self.neighbour_list = []
+        self.fixed = False
+
+    def set_fixed(self, uid, hops):
+        self.fixed = True
+
+        self.neighbour_list.append({'uid': uid,
+                                    'snr': 0,
+                                    'cumulative_lqi': sys.maxsize,
+                                    'hops': hops,
+                                    'best': True})
 
     def update(self, uid, snr, cumulative_lqi, hops):
         # TODO temp fix
-        neighbour = self.find_node(uid)
-        if neighbour is None:
-            if len(self.neighbour_list) >= settings.MAX_ROUTE_SIZE:
-                self.neighbour_list.remove(self.find_worst())
+        if not self.fixed:
+            neighbour = self.find_node(uid)
+            if neighbour is None:
+                if len(self.neighbour_list) >= settings.MAX_ROUTE_SIZE:
+                    self.neighbour_list.remove(self.find_worst())
 
-            self.neighbour_list.append({'uid': uid,
-                                        'snr': snr,
-                                        'cumulative_lqi': cumulative_lqi,
-                                        'hops': hops,
-                                        'best': False})
-        else:
-            neighbour["uid"] = uid
-            neighbour["snr"] = snr
-            neighbour["cumulative_lqi"] = cumulative_lqi
-            neighbour["hops"] = hops
-        self.find_route()
+                self.neighbour_list.append({'uid': uid,
+                                            'snr': snr,
+                                            'cumulative_lqi': cumulative_lqi,
+                                            'hops': hops,
+                                            'best': False})
+            else:
+                neighbour["uid"] = uid
+                neighbour["snr"] = snr
+                neighbour["cumulative_lqi"] = cumulative_lqi
+                neighbour["hops"] = hops
+            self.find_route()
 
     def find_node(self, _uid):
         for neighbour in self.neighbour_list:

@@ -71,3 +71,17 @@ def flatten_data(depth, data, names):
                         l.append(d)
 
     return l
+
+def _flatten_node_tree(route, parent, hops, flattened):
+    for key, value in route.items():
+        flattened[key] = {"via": parent, "hops": hops}
+        if len(value) > 0:
+            flattened = _flatten_node_tree(value, key, hops+1, flattened)
+    return flattened
+
+def flatten_node_tree(route):
+    flattened = {}
+    parent = 0x00
+    _flatten_node_tree(route, parent, -1, flattened)
+    return flattened
+

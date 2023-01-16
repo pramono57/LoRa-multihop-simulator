@@ -10,14 +10,14 @@ from multihop.utils import merge_data
 from multihop.preambles import preambles
 
 setting1 = "MEASURE_INTERVAL_S"
-setting2 = "TX_AGGREGATION_TIMER_NOMINAL"
+setting2 = "TX_COLLISION_TIMER_NOMINAL"
 
 df = pd.read_csv(f"results/simulate_matrix_{setting1}_{setting2}.csv")
 
 fig, ax = plt.subplots()
 
 for key, grp in df.groupby(['hops']):
-    data = grp.groupby(setting2, as_index=False)['aggregation_efficiency'].agg({'low': 'min', 'high': 'max', 'mean': 'mean'})
+    data = grp.groupby(setting2, as_index=False)['pdr'].agg({'low': 'min', 'high': 'max', 'mean': 'mean'})
     data.reset_index(inplace=True)
 
     data.plot(ax=ax, x=setting2, y='mean', label=key)

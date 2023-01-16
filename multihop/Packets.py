@@ -60,7 +60,7 @@ class MessagePayloadChunk:
         self.collided_at = None
 
     def size(self):
-        return self.len + 2  # + 2 header info bytes
+        return self.len + 3  # + 2 header info bytes
 
     def hop(self, node):
         self.hops += 1
@@ -75,6 +75,24 @@ class MessagePayloadChunk:
         self.collided_at = self.src_node.env.now
         self.collided = True
         self.src_node.collided(self)
+
+    def clip(self, i):
+        sl = slice(i*self.src_node.settings.MEASURE_PAYLOAD_SIZE_BYTE,
+                   (i+1)*self.src_node.settings.MEASURE_PAYLOAD_SIZE_BYTE)
+        self.data = self.data[sl]
+    def copy(self):
+        cp = MessagePayloadChunk(self.src, self.data, self.src_node)
+
+        # Meta data
+        cp.sent_at = self.sent_at
+        cp.arrived_at = self.arrived_at
+        cp.hops = self.hops
+        cp.trace = self.trace.copy()
+
+        cp.collided = self.collided
+        cp.collided_at = self.collided_at
+
+        return cp
 
     def in_trace(self, uid):
         if self.trace.count(uid) > 1:
@@ -98,7 +116,7 @@ class MessagePayload:
                 self.forwarded_data.append(f.payload.own_data)
 
     def size(self):
-        size = self.own_data.size()
+        size = self.own_data.size()+3
         for p in self.forwarded_data:
             size += p.size()
         return size
@@ -122,6 +140,14 @@ class MessagePayload:
         for p in self.forwarded_data:
             if p.in_trace(uid):
                 return True
+
+    def copy(self):
+        fwd = []
+        for f in self.forwarded_data:
+            fwd.extend(f.copy())
+        cpy = MessagePayload(self.own_data.src, self.own_data.data, self.own_data.src_node, fwd)
+        return fwd
+
     def __str__(self):
         str = f"own_data:{self.own_data} | forwarded_data:["
         for f in self.forwarded_data:

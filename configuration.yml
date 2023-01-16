@@ -2,7 +2,7 @@
 {% set PREAMBLE_DURATION_S = 1000/1000 %} # define variable so it can be used below
 {% set Vcc = 3.3 %}
 
-SIMULATION_RUN_TIME: {{60*60*24}}
+SIMULATION_RUN_TIME: {{60*60*1}}
 
 # LORA PHY SPECIFIC
 {% set SF = 7 %}
@@ -31,22 +31,23 @@ ROUTE_DISCOVERY_S: {{60*60*6}}        # period of transmitting a new beacon for 
 GW_BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
 
 # SENSOR NODE SPECIFIC PARAMS
-MEASURE_INTERVAL_S: {{60*30}}          # how freq. a measurement is taken by the sensor node
+MEASURE_INTERVAL_S: {{60*10}}          # how freq. a measurement is taken by the sensor node
 MEASURE_DURATION_S: 0.02           # how long takes a measurement
-MEASURE_PAYLOAD_SIZE_BYTE: 12
+MEASURE_PAYLOAD_SIZE_BYTE: 6
 
-MAX_BUF_SIZE_BYTE: 128
+MAX_BUF_SIZE_BYTE: {{ 96+16 }}
+MAX_BUF_SIZE_THRESHOLD: 0.75
 
 MAX_SEEN_PACKETS: 32
 MAX_ROUTE_SIZE: 8
 
 # timer set when first data in buffer (sense or DL)
-TX_AGGREGATION_TIMER_NOMINAL: {{16*60}}
+TX_AGGREGATION_TIMER_NOMINAL: {{20*60}}
 TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [90, 90]
-TX_AGGREGATION_TIMER_STEP_UP: 0     # update tx-data-timer when a msg has been received
-TX_AGGREGATION_TIMER_STEP_DOWN: 0
-TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN: 10     # update tx-data-timer when a msg has been received
-TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP: 6
+TX_AGGREGATION_TIMER_STEP_UP: 60     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_STEP_DOWN: 30
+TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN: 2     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP: 2
 
 # timer set when rx-ed beacon
 TX_COLLISION_TIMER_NOMINAL: {{ 30*PREAMBLE_DURATION_S }}

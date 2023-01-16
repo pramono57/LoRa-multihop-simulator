@@ -72,7 +72,7 @@ class Network:
                 if n_x is None or n_y is None:
                     n = kwargs.get('n', None)
                 else:
-                    number_of_nodes = n_x * n_y
+                    n = n_x * n_y
 
             rnd = kwargs.get("size_random")
             if rnd is None:
@@ -85,37 +85,45 @@ class Network:
             if g_y is None:
                 g_y = 0
 
-            self.nodes.append(Node(self.simpy_env, self.settings, 0, Position(g_x, g_y), NodeType.GATEWAY))
+
+            fixed_route = kwargs.get('fixed_route', None)
+            if fixed_route is not None:
+                fixed_route = flatten_node_tree(fixed_route)
+                node_uids = list(fixed_route.keys())
+                n = len(node_uids)
+            else:
+                node_uids = range(0, n)
+            self.nodes.append(Node(self.simpy_env, self.settings, node_uids[0], Position(g_x, g_y), NodeType.GATEWAY))
 
             if positioning == "random":
-                for x in range(1, n + 1):
+                for x in node_uids[1:]:
                     self.nodes.append(
-                        Node(self.simpy_env, x, Position(*np.random.uniform(-size_x / 2, size_y / 2, size=2)),
-                             NodeType.SENSOR))
+                        Node(self.simpy_env, self.settings, x, Position(*np.random.uniform(-size_x / 2, size_y / 2, size=2)),
+                             NodeType.SENSOR, fixed_route=fixed_route))
 
             elif positioning == "line":
                 if n == 1:
                     self.nodes.append(Node(self.simpy_env, self.settings, 1, Position(size_x, size_y), NodeType.SENSOR))
                 else:
-                    for x in range(1, n + 1):
+                    for x in node_uids[1:]:
                         self.nodes.append(Node(self.simpy_env, self.settings, x,
                                                Position(-size_x / 2 + (x - 1) * size_x / n + np.random.uniform(-rnd / 2,
                                                                                                                rnd),
                                                         -size_y / 2 + (x - 1) * size_y / n + np.random.uniform(-rnd / 2,
                                                                                                                rnd)),
-                                               NodeType.SENSOR))
+                                               NodeType.SENSOR, fixed_route=fixed_route))
 
             elif positioning == "matrix":
                 uid = 1
                 for y in range(0, n_y):
                     for x in range(0, n_x):
-                        self.nodes.append(Node(self.simpy_env, self.settings, uid,
+                        self.nodes.append(Node(self.simpy_env, self.settings, node_uids[uid],
                                                Position(
                                                    -size_x / 2 + x * size_x / (n_x - 1) + np.random.uniform(-rnd / 2,
                                                                                                             rnd),
                                                    -size_y / 2 + y * size_y / (n_y - 1) + np.random.uniform(-rnd / 2,
                                                                                                             rnd)),
-                                               NodeType.SENSOR))
+                                               NodeType.SENSOR, fixed_route=fixed_route))
                         uid += 1
 
             elif positioning == "circles-equal" or positioning == "circles":
@@ -165,12 +173,10 @@ class Network:
                         if 270 >= angle > 90:
                             _x = -_x
                         _y = _x * math.tan(math.radians(angle))
-                        self.nodes.append(Node(self.simpy_env, self.settings, uid,
+                        self.nodes.append(Node(self.simpy_env, self.settings, node_uids[uid],
                                                Position(_x + np.random.uniform(-rnd / 2, rnd),
                                                         _y + np.random.uniform(-rnd / 2, rnd)),
-                                               NodeType.SENSOR))
-                        if uid == 36:
-                            print("trouble")
+                                               NodeType.SENSOR, fixed_route=fixed_route))
                         uid += 1
 
 
@@ -201,10 +207,10 @@ class Network:
                         x = circle_r * math.cos(math.radians(base_angle + angle_start + j * angle_step)) + circle_x
                         y = circle_r * math.sin(math.radians(base_angle + angle_start + j * angle_step)) + circle_y
 
-                        self.nodes.append(Node(self.simpy_env, self.settings, i,
+                        self.nodes.append(Node(self.simpy_env, self.settings, node_uids[i],
                                                Position(x + np.random.uniform(-rnd / 2, rnd),
                                                         y + np.random.uniform(-rnd / 2, rnd)),
-                                               NodeType.SENSOR))
+                                               NodeType.SENSOR, fixed_route=fixed_route))
 
                         i += 1
 

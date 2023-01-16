@@ -53,7 +53,7 @@ def power_of_state(settings, s: NodeState):
 
 
 class Node:
-    def __init__(self, env: simpy.Environment, _settings, _id, _position, _type):
+    def __init__(self, env: simpy.Environment, _settings, _id, _position, _type, **kwargs):
         self.type = _type
 
         self.env = env
@@ -72,11 +72,6 @@ class Node:
         self.message_counter_only_own_data = 0
         self._pdr = 0
         self._plr = 0
-
-        # Routing and network
-        self.link_table = None
-        self.route = Route()
-        self.nodes = []  # list containing the other nodes in the network
 
         # Buffers
         self.data_buffer = []
@@ -100,6 +95,14 @@ class Node:
         for state in NodeState:
             self.time_spent_in[state.name] = 0
 
+        # Routing and network
+        self.link_table = None
+        self.route = Route()
+        fixed_route = kwargs.get("fixed_route", None)
+        if fixed_route is not None:
+            self.route.set_fixed(fixed_route[self.uid]["via"], fixed_route[self.uid]["hops"])
+        self.nodes = []  # list containing the other nodes in the network
+
         # Timers
         self.tx_collision_timer = None
         self.tx_route_discovery_timer = None
@@ -121,6 +124,8 @@ class Node:
 
         # Payload
         self.application_counter = 0
+
+
 
     def add_meta(self, _settings, nodes, link_table):
         self.nodes = nodes
@@ -378,7 +383,14 @@ class Node:
                 self.link_table.get_from_uid(self.uid, self.message_in_tx.header.address).use()
 
                 if self.message_in_tx.payload.own_data.len > 0:
-                    self.own_payloads_sent.append(self.message_in_tx.payload.own_data)
+                    if self.message_in_tx.payload.own_data.size() > settings.MEASURE_PAYLOAD_SIZE_BYTE:
+                        for i in range(0, math.floor(self.message_in_tx.payload.own_data.size() / settings.MEASURE_PAYLOAD_SIZE_BYTE)):
+                            cp = self.message_in_tx.payload.own_data.copy()
+                            cp.clip(i)
+                            self.own_payloads_arrived_at_gateway.append(cp)
+                    else:
+                        self.own_payloads_sent.append(self.message_in_tx.payload.own_data)
+
                 for pl in self.message_in_tx.payload.forwarded_data:
                     self.forwarded_payloads.append(pl)
 
@@ -431,7 +443,11 @@ class Node:
         return cad_detected
 
     def full_buffer(self):
-        return len(self.data_buffer) > self.settings.MAX_BUF_SIZE_BYTE
+        size = 0
+        for fw_message in self.forwarded_mgs_buffer:
+            size += fw_message.payload.size()
+
+        return size > self.settings.MAX_BUF_SIZE_BYTE*self.settings.MAX_BUF_SIZE_THRESHOLD
 
     def get_nodes_in_state(self, states):
         nodes = []
@@ -529,7 +545,13 @@ class Node:
 
     def arrived_at_gateway(self, payload):
         # Update statistics
-        self.own_payloads_arrived_at_gateway.append(payload)
+        if payload.size() > settings.MEASURE_PAYLOAD_SIZE_BYTE:
+            for i in range(0, math.floor(payload.size()/settings.MEASURE_PAYLOAD_SIZE_BYTE)):
+                cp = payload.copy()
+                cp.clip(i)
+                self.own_payloads_arrived_at_gateway.append(cp)
+        else:
+            self.own_payloads_arrived_at_gateway.append(payload)
 
     def pdr(self):
         if len(self.own_payloads_sent) > 0:
