@@ -1,0 +1,156 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{mathtools}
+\DeclarePairedDelimiter\ceil{\lceil}{\rceil}
+\usepackage{algorithmic}
+\usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage[acronym,shortcuts]{glossaries}
+\usepackage{placeins}
+\usepackage{flushend}
+\usepackage[utf8]{inputenc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=newest}
+\DeclareUnicodeCharacter{2212}{−}
+\usepgfplotslibrary{groupplots,dateplot}
+\usetikzlibrary{patterns,shapes.arrows}
+\usetikzlibrary{arrows}
+\usetikzlibrary{pgfplots.statistics}
+\usetikzlibrary{automata, positioning, arrows}
+\usetikzlibrary{backgrounds}
+\usepackage{mdframed}
+\usepackage{lipsum}
+\usepackage{booktabs}
+\usepackage{siunitx}
+\sisetup{per-mode=symbol,per-symbol = p,range-phrase=--, range-units=single,inter-unit-product = {}}
+\DeclareSIUnit{\belmilliwatt}{Bm}
+\DeclareSIUnit{\dBm}{\deci\belmilliwatt}
+\usepackage{float}
+%\usepackage[printwatermark]{xwatermark}
+\usepackage{pgfplots}
+\usepackage{setspace}
+\usepackage[font=small]{subcaption}
+\usepgfplotslibrary{dateplot} 
+\usepackage{eurosym}
+\usepackage{tabularx}
+\usepackage{nicefrac}
+\usepackage{bytefield}
+\usepackage{xspace}
+\usepackage{soul}
+
+\usepackage{scalerel}
+\usepackage{tikz-network}
+\usepackage{pgf-umlsd}
+\usepackage{tikz-dimline}
+\usetikzlibrary{svg.path}
+\usetikzlibrary{arrows.meta} 
+
+\newcommand{\multihop}{multi-hop\xspace}
+\newcommand{\Multihop}{Multi-hop\xspace}
+
+\title{An Energy-Efficient LoRa Multi-Hop Protocol through
+Preamble Sampling for Remote Sensing \\[1ex] \large -- Simulation Results --}
+\author{Guus Leenders}
+\date{April 2023}
+
+\begin{document}
+
+\maketitle
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%PAYLOAD SIZE%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\FloatBarrier
+\begin{figure}[p]
+    \centering
+    \include{img/randomaggregation/github_final_simulate_matrix_children_TX_AGGREGATION_TIMER_RANDOM_MEASURE_INTERVAL_S_23_02_22_pdr}
+    \vspace{-0.7cm}
+    \caption{Simulated packet delivery ratio (PDR) across the \multihop network w.r.t. the added random timer interval ($T_\text{random}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/randomaggregation/github_final_simulate_matrix_children_TX_AGGREGATION_TIMER_RANDOM_MEASURE_INTERVAL_S_23_02_22_plr}
+    \vspace{-0.7cm}
+    \caption{Simulated packet loss ratio (PLR) by collisions across the \multihop network w.r.t. the added random timer interval ($T_\text{random}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/randomaggregation/github_final_simulate_matrix_children_TX_AGGREGATION_TIMER_RANDOM_MEASURE_INTERVAL_S_23_02_22_aggregation_efficiency}
+    \vspace{-0.7cm}
+    \caption{Simulated Simulated aggregation ratio $\alpha_\text{aggregation}$ across the \multihop network w.r.t. the added random timer interval ($T_\text{random}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/randomaggregation/github_final_simulate_matrix_children_TX_AGGREGATION_TIMER_RANDOM_MEASURE_INTERVAL_S_23_02_22_energy_per_byte}
+    \vspace{-0.7cm}
+    \caption{Simulated energy per byte ($E_B$ across the \multihop network w.r.t. the added random timer interval ($T_\text{random}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/randomaggregation/github_final_simulate_matrix_children_TX_AGGREGATION_TIMER_RANDOM_MEASURE_INTERVAL_S_23_02_22_energy_tx_per_byte}
+    \vspace{-0.7cm}
+    \caption{Simulated transmit energy per byte ($E_{\text{TX}, B}$ across the \multihop network w.r.t. the added random timer interval ($T_\text{random}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/randomaggregation/github_final_simulate_matrix_children_TX_AGGREGATION_TIMER_RANDOM_MEASURE_INTERVAL_S_23_02_22_latency}
+    \vspace{-0.7cm}
+    \caption{Simulated latency of sensor readings across the \multihop network w.r.t. the added random timer interval ($T_\text{random}$).}
+    \label{fig:}
+\end{figure}
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%PAYLOAD SIZE%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\FloatBarrier
+\begin{figure}[p]
+    \centering
+    \include{img/size/github_final_simulate_matrix_children_MEASURE_PAYLOAD_SIZE_BYTE_MEASURE_INTERVAL_S_23_02_22_pdr}
+    \vspace{-0.7cm}
+    \caption{Simulated packet delivery ratio (PDR) across the \multihop network w.r.t. the data size of one sensor value ($n_\text{bytes, sensor}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/size/github_final_simulate_matrix_children_MEASURE_PAYLOAD_SIZE_BYTE_MEASURE_INTERVAL_S_23_02_22_plr}
+    \vspace{-0.7cm}
+    \caption{Simulated packet loss ratio (PLR) by collisions across the \multihop network w.r.t. the data size of one sensor value ($n_\text{bytes, sensor}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/size/github_final_simulate_matrix_children_MEASURE_PAYLOAD_SIZE_BYTE_MEASURE_INTERVAL_S_23_02_22_aggregation_efficiency}
+    \vspace{-0.7cm}
+    \caption{Simulated Simulated aggregation ratio $\alpha_\text{aggregation}$ across the \multihop network w.r.t. the data size of one sensor value ($n_\text{bytes, sensor}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/size/github_final_simulate_matrix_children_MEASURE_PAYLOAD_SIZE_BYTE_MEASURE_INTERVAL_S_23_02_22_energy_per_byte}
+    \vspace{-0.7cm}
+    \caption{Simulated energy per byte ($E_B$ across the \multihop network w.r.t. the data size of one sensor value ($n_\text{bytes, sensor}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/size/github_final_simulate_matrix_children_MEASURE_PAYLOAD_SIZE_BYTE_MEASURE_INTERVAL_S_23_02_22_energy_tx_per_byte}
+    \vspace{-0.7cm}
+    \caption{Simulated transmit energy per byte ($E_{\text{TX}, B}$ across the \multihop network w.r.t. the data size of one sensor value ($n_\text{bytes, sensor}$).}
+    \label{fig:}
+\end{figure}
+\begin{figure}[p]
+    \centering
+    \include{img/size/github_final_simulate_matrix_children_MEASURE_PAYLOAD_SIZE_BYTE_MEASURE_INTERVAL_S_23_02_22_latency}
+    \vspace{-0.7cm}
+    \caption{Simulated latency of sensor readings across the \multihop network w.r.t. the data size of one sensor value ($n_\text{bytes, sensor}$).}
+    \label{fig:}
+\end{figure}
+
+\end{document}

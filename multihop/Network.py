@@ -13,9 +13,14 @@ from operator import methodcaller
 import networkx as nx
 import pickle
 from collections.abc import Iterable
-from matplotlib import mlab
+import matplotlib as mpl
 import copy
 import sys
+import tikzplotlib
+from datetime import datetime
+import dill as dill
+import json
+
 
 class Network:
     def __init__(self, **kwargs):
@@ -23,12 +28,16 @@ class Network:
         self.simpy_env = simpy.Environment()
         self.link_table = None
 
+        self.start_time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+
         s = kwargs.get("settings", None)
         if s is not None:
             self.settings = s
         else:
             from .config import settings as settings_from_file
             self.settings = settings_from_file
+
+        self.settings["network"] = kwargs
 
         # Copy network
         nw = kwargs.get("network", None)
@@ -52,20 +61,48 @@ class Network:
             n_y = None
             n = None
 
-            positioning = kwargs.get('shape', None)
-            size_x = kwargs.get('size_x', None)
-            size_y = kwargs.get('size_y', None)
+            positioning = None
+            if "NETWORK_SHAPE" in self.settings.keys():
+                positioning = self.settings["NETWORK_SHAPE"]
+            else:
+                positioning = kwargs.get('shape', None)
+
+            shape_file = None
+            if "NETWORK_SHAPE_FILE" in self.settings.keys():
+                shape_file = self.settings["NETWORK_SHAPE_FILE"]
+            else:
+                shape_file = kwargs.get('shape_file', None)
+
+            size_x = None
+            if "NETWORK_SIZE_X" in self.settings.keys():
+                size_x = self.settings["NETWORK_SIZE_X"]
+            else:
+                size_x = kwargs.get('size_x', None)
+
+            size_y = None
+            if "NETWORK_SIZE_Y" in self.settings.keys():
+                size_y = self.settings["NETWORK_SIZE_Y"]
+            else:
+                size_y = kwargs.get('size_y', None)
 
             size = kwargs.get('size', None)
+            if size is None and "NETWORK_SIZE" in self.settings.keys():
+                size = self.settings["NETWORK_SIZE"]
+
             if size is not None:
                 size_x = size
                 size_y = size
 
-            density = kwargs.get('density', None)  # Density: how many nodes per km2
+            density = None
+            if "NETWORK_DENSITY" in self.settings.keys():
+                density = self.settings["NETWORK_DENSITY"]
+            else:
+                density = kwargs.get('density', None)
+
             if density is not None:
                 n_x = round(math.sqrt(density) / 1000 * size_x)
                 n_y = round(math.sqrt(density) / 1000 * size_y)
-
+                n = n_x * n_y
             else:
                 n_x = kwargs.get('n_x', None)
                 n_y = kwargs.get('n_y', None)
@@ -74,17 +111,29 @@ class Network:
                 else:
                     n = n_x * n_y
 
-            rnd = kwargs.get("size_random")
+            rnd = None
+            if "NETWORK_SIZE_RANDOM" in self.settings.keys():
+                rnd = self.settings["NETWORK_SIZE_RANDOM"]
+            else:
+                rnd = kwargs.get('size_random', None)
             if rnd is None:
                 rnd = 0
 
-            g_x = kwargs.get('g_x', None)
-            g_y = kwargs.get('g_y', None)
+            g_x = None
+            if "NETWORK_SIZE_RANDOM" in self.settings.keys():
+                g_x = self.settings["NETWORK_GATEWAY_X"]
+            else:
+                g_x = kwargs.get('g_x', None)
             if g_x is None:
                 g_x = 0
+
+            g_y = None
+            if "NETWORK_SIZE_RANDOM" in self.settings.keys():
+                g_y = self.settings["NETWORK_GATEWAY_Y"]
+            else:
+                g_y = kwargs.get('g_y', None)
             if g_y is None:
                 g_y = 0
-
 
             fixed_route = kwargs.get('fixed_route', None)
             if fixed_route is not None:
@@ -92,13 +141,17 @@ class Network:
                 node_uids = list(fixed_route.keys())
                 n = len(node_uids)
             else:
-                node_uids = range(0, n)
-            self.nodes.append(Node(self.simpy_env, self.settings, node_uids[0], Position(g_x, g_y), NodeType.GATEWAY))
+                if positioning != "custom":
+                    node_uids = range(0, n + 1)
+
+            self.nodes.append(
+                Node(self.simpy_env, self.settings, 0, Position(float(g_x), float(g_y)), NodeType.GATEWAY))
 
             if positioning == "random":
                 for x in node_uids[1:]:
                     self.nodes.append(
-                        Node(self.simpy_env, self.settings, x, Position(*np.random.uniform(-size_x / 2, size_y / 2, size=2)),
+                        Node(self.simpy_env, self.settings, x,
+                             Position(*np.random.uniform(-size_x / 2, size_y / 2, size=2)),
                              NodeType.SENSOR, fixed_route=fixed_route))
 
             elif positioning == "line":
@@ -214,6 +267,17 @@ class Network:
 
                         i += 1
 
+            elif positioning == "custom":
+                f = open(shape_file)
+                nodes = json.load(f)
+
+                for n in nodes:
+                    if n["uid"] > 0:
+                        self.nodes.append(Node(self.simpy_env, self.settings, n["uid"],
+                                               Position(n["position"]["x"],
+                                                        n["position"]["y"]),
+                                               NodeType.SENSOR, fixed_route=fixed_route))
+
             recalc = self.evaluate_distances()
             while recalc:
                 recalc = self.evaluate_distances()
@@ -294,6 +358,16 @@ class Network:
 
         self.simpy_env.run(until=simulation_time)
 
+    def extract_simpy(self):
+        self.simpy_env = None
+        for node in self.nodes:
+            node.env = None
+            node.sense_timer.env = None
+            node.tx_aggregation_timer.env = None
+            node.tx_collision_timer.env = None
+            if node.tx_route_discovery_timer is not None:
+                node.tx_route_discovery_timer.env = None
+
     def copy(self):
         return Network(network=self, settings=copy.deepcopy(self.settings))
 
@@ -303,29 +377,38 @@ class Network:
     def plot_network_usage(self):
         self.link_table.plot_usage()
 
-    def plot_states(self):
+    def plot_states(self, ns=None):
         import matplotlib.pyplot as plt
 
-        fig, ax = plt.subplots(len(self.nodes), sharex=True, sharey=True)
-        for i, node in enumerate(self.nodes):
-            node.plot_states(ax[i])
+        if ns is None:
+            ns = len(self.nodes)
+
+        fig, ax = plt.subplots(len(ns), sharex=True, sharey=True)
+        i = 0
+        for node in self.nodes:
+            if node.uid in ns:
+                node.plot_states(ax[i])
+                i += 1
 
         ax[0].set_yticks([0, 1, 2, 3, 4, 5, 6], ["INIT", "ZZZ", "CAD", "RX", "SNS", "P_TX", "TX"])
         plt.show(block=False)
 
-    def hops_statistic(self, stat, **kwargs):
+    def statistic(self, stat0, stat, **kwargs):
         method = methodcaller(stat)
 
         data = {}
         for node in self.nodes:
             if node.type == NodeType.SENSOR:
                 if node.route is not None:
-                    route = node.route.find_best()
-                    hops = 0
-                    if route is not None:
-                        hops = route["hops"]
-                    else:  # If no route is yet found by multihop protocol, find location in networkx
-                        hops = len(nx.shortest_path(self.link_table.network, source=0, target=node.uid))
+                    hops = 0  # hops is legacy name and is used for stat0
+                    if stat0 == "hops":
+                        route = node.route.find_best()
+                        if route is not None:
+                            hops = route["hops"]
+                        else:  # If no route is yet found by multi-hop protocol, find location in networkx
+                            hops = len(nx.shortest_path(self.link_table.network, source=0, target=node.uid))
+                    elif stat0 == "children":
+                        hops = len(list(set(node.forwarded_from)))
 
                     ret = method(node)
                     if isinstance(ret, Iterable):
@@ -364,7 +447,7 @@ class Network:
     def plot_hops_statistic(self, stat, **kwargs):
         import matplotlib.pyplot as plt
 
-        data = self.hops_statistic(stat, **kwargs)
+        data = self.statistic("children", stat, **kwargs)
 
         type = kwargs.get("type")
 
@@ -375,11 +458,42 @@ class Network:
             plt.xticks(range(1, len(labels) + 1), labels)
             ax.set_ylabel(stat)
         elif type == "cdf":
-            for hop_count, x in data.items():
-                n, bins, patches = ax.hist(np.sort(x), density=True, histtype='step', cumulative=True, label=hop_count)
-                patches[0].set_xy(patches[0].get_xy()[:-1])
-            ax.set_xlabel(stat)
-            ax.legend()
+            mpl.use('TkAgg')
+            fig, ax = plt.subplots(figsize=(8, 4))
+
+            pdr = []
+            for hops, d in data.items():
+                pdr = pdr + d
+
+            x_axis = [0] + np.sort(pdr).tolist()
+            y_axis = [0] + (np.arange(len(pdr)) / (len(pdr) - 1)).tolist()
+            plt.plot(x_axis, y_axis, label='overall')
+
+            _filter = [[0], [1], [2], [3], [4], [5], [6], [7]]
+            for f in _filter:
+                pdr = []
+                for mf in f:
+                    pdr = pdr + data[mf]
+
+                x_axis = [0] + np.sort(pdr).tolist()
+                y_axis = [0] + (np.arange(len(pdr)) / (len(pdr) - 1)).tolist()
+                plt.plot(x_axis, y_axis, label=''.join(str(x) for x in f))
+
+            # for hop_count, x in data.items():
+            #     x_axis = [0] + np.sort(x).tolist()
+            #     y_axis = [0] + (np.arange(len(x)) / (len(x) - 1)).tolist()
+            #     plt.plot(x_axis, y_axis, label=hop_count)
+
+            #     n, bins, patches = ax.hist(np.sort(x), density=True, histtype='step', cumulative=True, label=hop_count)
+            #     patches[0].set_xy(patches[0].get_xy()[:-1])
+            # ax.set_xlabel(stat)
+            # ax.legend()
+
+        with open(f"results/{self.start_time}_{stat}.json", 'w') as fp:
+            json.dump(data, fp)
+
+        # tikzplotlib.save(f"results/{self.start_time}_{stat}.tex")
+        plt.legend()
         plt.show(block=False)
 
     def pdr(self):
@@ -418,6 +532,11 @@ class Network:
         for uid, node in data.items():
             hops = node['hops']
             plt.plot(node["aggregation_timer_times"], node["aggregation_timer_values"], label=f"uid {uid}, hops {hops}")
+
+        with open(f"results/{self.start_time}aggregation_timer_values.json", 'w') as fp:
+            json.dump(data, fp)
+        tikzplotlib.save(f"results/{self.start_time}aggregation_timer_values.tex")
+
         plt.show()
 
     def hops_statistic_energy_per_state(self, normalized=True):
@@ -439,7 +558,7 @@ class Network:
                             sum += value
 
                         for state, value in ret.items():
-                            ret[state] = value/sum
+                            ret[state] = value / sum
 
                     if hops not in data:
                         data[hops] = {}
@@ -464,4 +583,26 @@ class Network:
                 pie_labels.append(state)
             axis[hop].pie(np.array(pie_values), labels=pie_labels)
 
+        with open(f"results/{self.start_time}_hops_statistic_energy_per_state.json", 'w') as fp:
+            json.dump(data, fp)
+        tikzplotlib.save(f"results/{self.start_time}_hops_statistic_energy_per_state.tex")
+
         plt.show()
+
+    def save_settings(self):
+        with open(f"results/{self.start_time}_settings.json", 'w') as fp:
+            json.dump(self.settings, fp)
+
+    def save(self):
+        self.extract_simpy()
+        ofile = open(f"results/{self.start_time}_network.dill", "wb")
+        dill.dump(self, ofile)
+        ofile.close()
+
+    @staticmethod
+    def load(filename):
+        ifile = open(filename, "rb")
+        newdata = dill.load(ifile)
+        ifile.close()
+
+        return newdata

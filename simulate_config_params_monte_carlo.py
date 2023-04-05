@@ -34,7 +34,7 @@ if __name__ == "__main__":
     np.random.seed(9999)
 
     # DF save settings
-    filename = "results/monte_carlo_measure_aggregation.csv"
+    filename = "results/monte_carlo_measure_aggregation_23_02_17.csv"
 
     # Scenario settings
     scenario_settings = [
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     each_time = 1  # Run each scenario 10 times
 
     # Generate network
-    network = Network(settings=settings, shape="matrix", size_x=200, size_y=200, density=1000, size_random=10)
+    network = Network()
     map = network.get_node_map()
 
     pool = mp.Pool(math.floor(mp.cpu_count() / 2))

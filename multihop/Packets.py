@@ -42,12 +42,13 @@ class MessageHeader:
 
 
 class MessagePayloadChunk:
-    def __init__(self, src, data, src_node):
+    def __init__(self, src, data, data_created_at, src_node):
         self.src = src
         self.data = data
         self.len = len(data)
 
         # Meta data
+        self.created_at = data_created_at
         self.sent_at = 0
         if src_node is not None:
             self.sent_at = src_node.env.now
@@ -80,8 +81,9 @@ class MessagePayloadChunk:
         sl = slice(i*self.src_node.settings.MEASURE_PAYLOAD_SIZE_BYTE,
                    (i+1)*self.src_node.settings.MEASURE_PAYLOAD_SIZE_BYTE)
         self.data = self.data[sl]
+
     def copy(self):
-        cp = MessagePayloadChunk(self.src, self.data, self.src_node)
+        cp = MessagePayloadChunk(self.src, self.data, self.created_at, self.src_node)
 
         # Meta data
         cp.sent_at = self.sent_at
@@ -106,8 +108,8 @@ class MessagePayloadChunk:
 
 
 class MessagePayload:
-    def __init__(self, src, own_data, src_node, forwarded_msgs):
-        self.own_data = MessagePayloadChunk(src, own_data, src_node)
+    def __init__(self, src, own_data, own_data_created_at, src_node, forwarded_msgs):
+        self.own_data = MessagePayloadChunk(src, own_data, own_data_created_at, src_node)
         self.forwarded_data = []
 
         for f in forwarded_msgs:
@@ -121,8 +123,8 @@ class MessagePayload:
             size += p.size()
         return size
 
-    def set_own_data(self, src, own_data, src_node):
-        self.own_data = MessagePayloadChunk(src, own_data, src_node)
+    def set_own_data(self, src, own_data, own_data_created_at, src_node):
+        self.own_data = MessagePayloadChunk(src, own_data, own_data_created_at, src_node)
 
     def arrived_at_gateway(self):
         if self.own_data.len > 0:
@@ -145,7 +147,7 @@ class MessagePayload:
         fwd = []
         for f in self.forwarded_data:
             fwd.extend(f.copy())
-        cpy = MessagePayload(self.own_data.src, self.own_data.data, self.own_data.src_node, fwd)
+        cpy = MessagePayload(self.own_data.src, self.own_data.data, self.own_data.created_at, self.own_data.src_node, fwd)
         return fwd
 
     def __str__(self):
@@ -165,9 +167,9 @@ class Message:
     [            HEADER             ][ OWN DATA ]  [                       FORWARDED MSGS                      ]
     """
 
-    def __init__(self, settings, msg_type: MessageType, hops, lqi, dst, src, own_data, src_node, forwarded_msgs):
+    def __init__(self, settings, msg_type: MessageType, hops, lqi, dst, src, own_data, own_data_created_at, src_node, forwarded_msgs):
         self.header = MessageHeader(msg_type, hops, lqi, dst)
-        self.payload = MessagePayload(src, own_data, src_node, forwarded_msgs)
+        self.payload = MessagePayload(src, own_data, own_data_created_at, src_node, forwarded_msgs)
 
         # Meta
         self.collided = False
@@ -188,7 +190,7 @@ class Message:
 
     def copy(self):
         cpy = Message(self.settings, self.header.type, self.header.hops, self.header.cumulative_lqi, self.header.address,
-                      self.payload.own_data.src, self.payload.own_data.data, self.payload.own_data.src_node, self.payload.forwarded_data)
+                      self.payload.own_data.src, self.payload.own_data.data, self.payload.own_data.created_at, self.payload.own_data.src_node, self.payload.forwarded_data)
         cpy.payload.own_data.trace = self.payload.own_data.trace.copy()
         cpy.header.uid = self.header.uid
         return cpy

@@ -17,10 +17,9 @@ class LinkTable:
                 if node1.uid is not node2.uid:
                     if node1.uid < node2.uid:
                         _link_table[node2.uid] = Link(self.settings, node1, node2)
-                        self.network.add_node(node1.uid, pos=(node1.position.x, node1.position.y))
-                        self.network.add_node(node2.uid, pos=(node2.position.x, node2.position.y))
+                        self.network.add_node(node1.uid, name="{:02d}".format(node1.uid), pos=(node1.position.x+50, node1.position.y+100))
+                        self.network.add_node(node2.uid, name="{:02d}".format(node2.uid), pos=(node2.position.x+50, node2.position.y+100))
                         if _link_table[node2.uid].in_range():
-                            # TODO: something is wrong here, some links are not depicted that should!
                             w = 1 + _link_table[node2.uid].rss() - self.settings.LORA_SENSITIVITY
                             self.network.add_edge(node1.uid, node2.uid, weight=w)
             self.link_table[node1.uid] = _link_table
@@ -47,13 +46,26 @@ class LinkTable:
         if nw is None:
             nw = self.network
 
+        pos = nx.get_node_attributes(nw, 'pos')
+        edges, weights = zip(*nx.get_edge_attributes(nw, 'weight').items())
+        weights = tuple(item / w * 4 for item in weights)
+
+        # from network2tikz import plot as network_plot_tikz
+        # style = {}
+        # style['vertex_label'] = nx.get_node_attributes(self.network, 'name')
+        # style['edge_curved'] = 0.1
+        # style["canvas"] = (10, 10)
+        # style['layout'] = pos
+        # style['edge_width'] = {e:0.3 * f for e,f in nx.get_edge_attributes(self.network,'weight').items()}
+        # style['keep_aspect_ratio'] = True
+        # style['vertex_size'] = .8
+        # style['vertex_color'] = "gray!10"
+        #
+        # network_plot_tikz(self.network, './results/network.tex', **style)
+
         mpl.rc('image', cmap='Greys')
         fig, ax = plt.subplots()
 
-        pos = nx.get_node_attributes(nw, 'pos')
-        edges, weights = zip(*nx.get_edge_attributes(nw, 'weight').items())
-
-        weights = tuple(item / w * 4 for item in weights)
 
         nx.draw(nw, pos, with_labels=True, width=weights)
 
@@ -108,7 +120,13 @@ class Link:
         shadowing = 0
         if self.settings.SHADOWING_ENABLED:
             shadowing = self._shadowing
-        return 74.85 + 2.75 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
+
+        if self.settings.ENVIRONMENT.lower() == "urban":
+            return 74.85 + 2.75 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
+        elif self.settings.ENVIRONMENT.lower() == "coast":
+            return 42.96 + 3.62 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
+        elif self.settings.ENVIRONMENT.lower() == "forest":
+            return 95.52 + 2.03 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
 
     def snr(self):
         self._snr = self.rss() + 116.86714407 # thermal noise for 25°C 500kHz BW

@@ -60,31 +60,32 @@ class Route:
 
         return self.neighbour_list[worst_i]
 
-    def find_best(self):
+    def find_best(self, exclude=[]):
         if len(self.neighbour_list) > 0:
             best_i = 0
             for i, neighbour in enumerate(self.neighbour_list):
                 neighbour["best"] = False
-                if neighbour["cumulative_lqi"] < self.neighbour_list[best_i]["cumulative_lqi"]:
-                    # cumulative LQI of this neighbour is better than the previous one
-                    # -> save index of this neighbour
-                    best_i = i
-                elif neighbour["cumulative_lqi"] == self.neighbour_list[best_i]["cumulative_lqi"]:
-                    # See if the LQI is equal -> best route is the lowest number of hops
-                    if neighbour["hops"] < self.neighbour_list[best_i]["hops"]:
+                if neighbour["uid"] not in exclude:
+                    if neighbour["cumulative_lqi"] < self.neighbour_list[best_i]["cumulative_lqi"]:
+                        # cumulative LQI of this neighbour is better than the previous one
+                        # -> save index of this neighbour
                         best_i = i
-                    elif neighbour["hops"] == self.neighbour_list[best_i]["hops"]:
-                        # See if the nr of hops is equal -> best route is the lowest snr to neighbour
-                        if neighbour["snr"] > self.neighbour_list[best_i]["snr"]:
+                    elif neighbour["cumulative_lqi"] == self.neighbour_list[best_i]["cumulative_lqi"]:
+                        # See if the LQI is equal -> best route is the lowest number of hops
+                        if neighbour["hops"] < self.neighbour_list[best_i]["hops"]:
                             best_i = i
+                        elif neighbour["hops"] == self.neighbour_list[best_i]["hops"]:
+                            # See if the nr of hops is equal -> best route is the lowest snr to neighbour
+                            if neighbour["snr"] > self.neighbour_list[best_i]["snr"]:
+                                best_i = i
 
             self.neighbour_list[best_i]["best"] = True
             return self.neighbour_list[best_i]
         else:
             return None
 
-    def find_route(self):
-        return self.find_best()
+    def find_route(self, exclude=[]):
+        return self.find_best(exclude)
 
     def __str__(self):
         return tabulate(self.neighbour_list, headers="keys")

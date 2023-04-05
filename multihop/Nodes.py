@@ -67,6 +67,8 @@ class Node:
         self.own_payloads_arrived_at_gateway = []
         self.own_payloads_collided = []
         self.forwarded_payloads = []
+        self.forwarded_from = []
+        self.number_of_aggregated = []
         self.message_counter_own_data_and_forwarded_data = 0
         self.message_counter_only_forwarded_data = 0
         self.message_counter_only_own_data = 0
@@ -75,6 +77,7 @@ class Node:
 
         # Buffers
         self.data_buffer = []
+        self.data_created_at = 0
         self.forwarded_mgs_buffer = []
         self.route_discovery_forward_buffer = None
         self.messages_seen = collections.deque(maxlen=self.settings.MAX_SEEN_PACKETS)
@@ -184,7 +187,10 @@ class Node:
             self.tx_aggregation_timer.start(restart=False)
             self.sense_timer.start()
 
+            if len(self.data_buffer) == 0:
+                self.data_created_at = self.env.now
             self.data_buffer.extend(self.application_counter.to_bytes(self.settings.MEASURE_PAYLOAD_SIZE_BYTE, 'big'))
+
             self.application_counter = (self.application_counter + 1) % 65535
 
     def check_transmit(self):
@@ -192,7 +198,7 @@ class Node:
         if self.type == NodeType.GATEWAY:
             if self.tx_route_discovery_timer.is_expired():
                 self.route_discovery_forward_buffer = \
-                    Message(self.settings, MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], self, [])
+                    Message(self.settings, MessageType.TYPE_ROUTE_DISCOVERY, 0, 0, 0, 0, [0x55, 0x55, 0x55], self.env.now, self, [])
                 yield self.env.process(self.tx())
                 self.tx_route_discovery_timer.backoff = self.settings.ROUTE_DISCOVERY_S
                 self.tx_route_discovery_timer.reset()
@@ -219,7 +225,7 @@ class Node:
     def periodic_wakeup(self):
         while True:
             self.state_change(NodeState.STATE_SLEEP)
-            cad_interval = random(self.settings.CAD_INTERVAL_RANDOM_S)
+            cad_interval = self.settings.CAD_INTERVAL + random(self.settings.CAD_INTERVAL_RANDOM_S)
             yield self.env.timeout(cad_interval)
 
             cad_detected = yield self.env.process(self.cad())
@@ -335,21 +341,29 @@ class Node:
                 hops = self.forwarded_mgs_buffer[0].header.hops
                 lqi = self.forwarded_mgs_buffer[0].header.cumulative_lqi
 
-            route = self.route.find_route()
-            if route is None:
-                route = 0
-            else:
-                route = route["uid"]
-
             self.message_in_tx = Message(self.settings,
                                          MessageType.TYPE_ROUTED,
                                          hops,
                                          0,
-                                         route,
+                                         0, # Route gets updated later
                                          self.uid,
                                          self.data_buffer,
+                                         self.data_created_at,
                                          self,
                                          self.forwarded_mgs_buffer)
+
+            # Get exclude list from all nodes that already forwarded
+            exclude = []
+            for p in self.message_in_tx.payload.forwarded_data:
+                for u in p.trace:
+                    if u not in exclude:
+                        exclude.append(u)
+
+            route = self.route.find_route(exclude)
+            if route is None:
+                self.message_in_tx.header.address = 0
+            else:
+                self.message_in_tx.header.address = route["uid"]
 
             # Increase counters and adjust lqi if forward
             if len(self.message_in_tx.payload.forwarded_data) > 0:
@@ -383,11 +397,11 @@ class Node:
                 self.link_table.get_from_uid(self.uid, self.message_in_tx.header.address).use()
 
                 if self.message_in_tx.payload.own_data.len > 0:
-                    if self.message_in_tx.payload.own_data.size() > settings.MEASURE_PAYLOAD_SIZE_BYTE:
-                        for i in range(0, math.floor(self.message_in_tx.payload.own_data.size() / settings.MEASURE_PAYLOAD_SIZE_BYTE)):
+                    if self.message_in_tx.payload.own_data.size() - 3 > settings.MEASURE_PAYLOAD_SIZE_BYTE:
+                        for i in range(0, math.floor((self.message_in_tx.payload.own_data.size() - 3) / settings.MEASURE_PAYLOAD_SIZE_BYTE)):
                             cp = self.message_in_tx.payload.own_data.copy()
                             cp.clip(i)
-                            self.own_payloads_arrived_at_gateway.append(cp)
+                            self.own_payloads_sent.append(cp)
                     else:
                         self.own_payloads_sent.append(self.message_in_tx.payload.own_data)
 
@@ -400,6 +414,8 @@ class Node:
                     self.message_counter_only_own_data += 1
                 elif len(self.message_in_tx.payload.forwarded_data) > 0:
                     self.message_counter_only_forwarded_data += 1
+
+                self.number_of_aggregated.append(len(self.forwarded_mgs_buffer))
 
             yield self.env.timeout(packet_time)
             self.state_change(NodeState.STATE_SLEEP)  # Go back to sleep after transmit
@@ -536,6 +552,8 @@ class Node:
                     self.aggregation_timer_times.append(self.env.now)
 
                     self.forwarded_mgs_buffer.append(rx_packet)
+                    self.forwarded_from.append(rx_packet.payload.own_data.src)
+
                 elif self.type == NodeType.GATEWAY:
                     rx_packet.arrived_at_gateway()
 
@@ -545,8 +563,8 @@ class Node:
 
     def arrived_at_gateway(self, payload):
         # Update statistics
-        if payload.size() > settings.MEASURE_PAYLOAD_SIZE_BYTE:
-            for i in range(0, math.floor(payload.size()/settings.MEASURE_PAYLOAD_SIZE_BYTE)):
+        if payload.size()-3 > settings.MEASURE_PAYLOAD_SIZE_BYTE:
+            for i in range(0, math.floor((payload.size()-3)/settings.MEASURE_PAYLOAD_SIZE_BYTE)):
                 cp = payload.copy()
                 cp.clip(i)
                 self.own_payloads_arrived_at_gateway.append(cp)
@@ -580,6 +598,25 @@ class Node:
     def energy(self):
         return self.energy_mJ
 
+    def energy_per_byte(self):
+        l = 0
+        for own in self.own_payloads_sent:
+            l += len(own.data)
+        for forwarded in self.forwarded_payloads:
+            l += len(forwarded.data)
+        return self.energy_mJ/l
+
+    def energy_tx_per_byte(self):
+        l = 0
+        for own in self.own_payloads_sent:
+            l += len(own.data)
+        for forwarded in self.forwarded_payloads:
+            l += len(forwarded.data)
+
+        energy = self.time_spent_in[NodeState["STATE_PREAMBLE_TX"].name] * power_of_state(self.settings, NodeState["STATE_PREAMBLE_TX"])
+        energy += self.time_spent_in[NodeState["STATE_TX"].name] * power_of_state(self.settings, NodeState["STATE_PREAMBLE_TX"])
+        return energy/l
+
     def energy_per_state(self):
         ret = {}
         for state in NodeState:
@@ -589,7 +626,9 @@ class Node:
     def latency(self):
         latencies = []
         for payload in self.own_payloads_arrived_at_gateway:
-            latencies.append(payload.arrived_at - payload.sent_at)
+            latencies.append(payload.arrived_at - payload.created_at)
+            if payload.arrived_at == 0:
+                print("Trouble")
 
         return latencies
 

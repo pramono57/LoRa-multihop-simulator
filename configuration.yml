@@ -2,8 +2,6 @@
 {% set PREAMBLE_DURATION_S = 1000/1000 %} # define variable so it can be used below
 {% set Vcc = 3.3 %}
 
-SIMULATION_RUN_TIME: {{60*60*1}}
-
 # LORA PHY SPECIFIC
 {% set SF = 7 %}
 {% set BW = 125 %}
@@ -16,6 +14,18 @@ LORA_IMPLICIT_HEADER: 0 # implicit header
 LORA_TRANSMIT_POWER: 2
 LORA_SENSITIVITY: -123
 LORA_POWER_THRESHOLD: 6
+
+# SIMULATION PARAMETERS
+SIMULATION_RUN_TIME: {{60*60*6}}
+NETWORK_SHAPE: "matrix" # "custom"
+#NETWORK_SHAPE_FILE: "campus.json"
+NETWORK_SIZE_X: 1000
+NETWORK_SIZE_Y: 1000
+NETWORK_DENSITY: 500
+NETWORK_SIZE_RANDOM: 10
+NETWORK_GATEWAY_X: -500
+NETWORK_GATEWAY_Y: 500
+ENVIRONMENT: "coast"
 
 
 PREAMBLE_DURATION_S: {{ PREAMBLE_DURATION_S }}
@@ -31,7 +41,7 @@ ROUTE_DISCOVERY_S: {{60*60*6}}        # period of transmitting a new beacon for 
 GW_BEACON_PAYLOAD_SIZE_BYTE: 3     #TODO now random value
 
 # SENSOR NODE SPECIFIC PARAMS
-MEASURE_INTERVAL_S: {{60*10}}          # how freq. a measurement is taken by the sensor node
+MEASURE_INTERVAL_S: {{60*30}}          # how freq. a measurement is taken by the sensor node
 MEASURE_DURATION_S: 0.02           # how long takes a measurement
 MEASURE_PAYLOAD_SIZE_BYTE: 6
 
@@ -42,23 +52,23 @@ MAX_SEEN_PACKETS: 32
 MAX_ROUTE_SIZE: 8
 
 # timer set when first data in buffer (sense or DL)
-TX_AGGREGATION_TIMER_NOMINAL: {{20*60}}
+TX_AGGREGATION_TIMER_NOMINAL: {{15*60}}
 TX_AGGREGATION_TIMER_RANDOM: !!python/tuple [90, 90]
-TX_AGGREGATION_TIMER_STEP_UP: 60     # update tx-data-timer when a msg has been received
-TX_AGGREGATION_TIMER_STEP_DOWN: 30
-TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN: 2     # update tx-data-timer when a msg has been received
-TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP: 2
+TX_AGGREGATION_TIMER_STEP_UP: 0 #60     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_STEP_DOWN: 0 #30
+TX_AGGREGATION_TIMER_MIN_TIMES_STEP_DOWN: 15     # update tx-data-timer when a msg has been received
+TX_AGGREGATION_TIMER_MAX_TIMES_STEP_UP: 30
 
 # timer set when rx-ed beacon
 TX_COLLISION_TIMER_NOMINAL: {{ 30*PREAMBLE_DURATION_S }}
 TX_COLLISION_TIMER_RANDOM: !!python/tuple [{{ 0.5 }}, {{ 0.5 }}]
 
-
-CAD_INTERVAL_RANDOM_S: !!python/tuple [{{ PREAMBLE_DURATION_S/2 }}, {{ PREAMBLE_DURATION_S - (45/1000)}}]
+CAD_INTERVAL: {{ PREAMBLE_DURATION_S*0.625 }}
+CAD_INTERVAL_RANDOM_S: !!python/tuple [{{ PREAMBLE_DURATION_S*0.125 }}, {{ PREAMBLE_DURATION_S*0.125 }}]
 # wait min TX_BEACON_COLL_AVOIDANCE_RANDOM before sending a data packet after a beacon was forwarded
 TX_BEACON_COLL_AVOIDANCE_RANDOM: !!python/tuple [{{ PREAMBLE_DURATION_S }}, {{ 3*PREAMBLE_DURATION_S }}]
 
-MAX_DELAY_START_PER_NODE_RANDOM_S: 10  # random wait time till node is active (enters the network)
+MAX_DELAY_START_PER_NODE_RANDOM_S: {{ 60*45}}  # random wait time till node is active (enters the network)
 
 # Power consumption
 POWER_SLEEP_mW: {{ 5.11*Vcc/1000 }}
@@ -68,10 +78,10 @@ POWER_SENSE_mW: {{ 20*Vcc }} #TODO
 
 
 {% set TIME_CAD_WAKE_S = 5/1000 %}
-{% set TIME_CAD_STABILIZE_S =   30/1000 %}
+{% set TIME_CAD_STABILIZE_S =   2/1000 %}
 #{% set TIME_CAD_PERFORM_S =  18.7/1000 %}
 {% set TIME_CAD_PERFORM_S =  (2.0 ** SF) / BW / 1000 %}
-{% set TIME_CAD_PROC_S =  15.2/1000 %}
+{% set TIME_CAD_PROC_S =  5.1/1000 %}
 {% set TIME_CAD_CYCLE_S = TIME_CAD_WAKE_S+TIME_CAD_STABILIZE_S+TIME_CAD_PERFORM_S+TIME_CAD_PROC_S %}
 
 TIME_CAD_WAKE_S: {{ TIME_CAD_WAKE_S }}
