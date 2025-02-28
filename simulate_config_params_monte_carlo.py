@@ -39,18 +39,13 @@ if __name__ == "__main__":
     # Scenario settings
     scenario_settings = [
         {
-            "name": "MEASURE_INTERVAL_S",
-            "min": 2 * 60,
-            "max": 60 * 60,
-            "unit": 60
-        }, {
-            "name": "TX_AGGREGATION_TIMER_NOMINAL",
-            "min": 2 * 60,
-            "max": 60 * 60,
-            "unit": 60
+            "name": "LORA_SF",
+            "min": 7,
+            "max": 8,
+            "unit": 1
         }
     ]
-    number_of_scenarios = 2
+    number_of_scenarios = 1
 
     each_time = 1  # Run each scenario 10 times
 

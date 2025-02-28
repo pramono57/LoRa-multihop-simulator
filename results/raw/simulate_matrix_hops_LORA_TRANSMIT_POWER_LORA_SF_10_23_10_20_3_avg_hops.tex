@@ -1,0 +1,122 @@
+% This file was created with tikzplotlib v0.10.1.
+\begin{tikzpicture}
+
+\definecolor{crimson2143940}{RGB}{214,39,40}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darkorange25512714}{RGB}{255,127,14}
+\definecolor{forestgreen4416044}{RGB}{44,160,44}
+\definecolor{mediumpurple148103189}{RGB}{148,103,189}
+\definecolor{sienna1408675}{RGB}{140,86,75}
+\definecolor{steelblue31119180}{RGB}{31,119,180}
+
+\begin{axis}[
+tick align=outside,
+tick pos=left,
+x grid style={darkgray176},
+xlabel={LORA_TRANSMIT_POWER},
+xmin=1.4, xmax=14.6,
+xtick style={color=black},
+y grid style={darkgray176},
+ylabel={Hops},
+ymin=-0.05625, ymax=1.18125,
+ytick style={color=black}
+]
+\addplot [semithick, steelblue31119180]
+table {%
+2 1.125
+3 1.04375
+4 0.959375
+5 0.88125
+6 0.725
+7 0.63125
+8 0.5875
+9 0.525
+10 0.46875
+11 0.40625
+12 0.375
+13 0.384375
+14 0.28125
+};
+\addplot [semithick, darkorange25512714]
+table {%
+2 0.878125
+3 0.875
+4 0.6625
+5 0.584375
+6 0.5625
+7 0.528125
+8 0.46875
+9 0.40625
+10 0.4125
+11 0.34375
+12 0.30625
+13 0.21875
+14 0.0625
+};
+\addplot [semithick, forestgreen4416044]
+table {%
+2 0.6375
+3 0.584375
+4 0.51875
+5 0.46875
+6 0.40625
+7 0.375
+8 0.375
+9 0.28125
+10 0.21875
+11 0.1875
+12 0.03125
+13 0
+14 0
+};
+\addplot [semithick, crimson2143940]
+table {%
+2 0.528125
+3 0.46875
+4 0.49375
+5 0.375
+6 0.34375
+7 0.25
+8 0.21875
+9 0.0625
+10 0.03125
+11 0
+12 0
+13 0
+14 0
+};
+\addplot [semithick, mediumpurple148103189]
+table {%
+2 0.375
+3 0.375
+4 0.28125
+5 0.2375
+6 0.1875
+7 0.03125
+8 0
+9 0
+10 0
+11 0
+12 0
+13 0.075
+14 0
+};
+\addplot [semithick, sienna1408675]
+table {%
+2 0.25
+3 0.21875
+4 0.0625
+5 0.03125
+6 0
+7 0
+8 0
+9 0
+10 0
+11 0
+12 0.05625
+13 0
+14 0
+};
+\end{axis}
+
+\end{tikzpicture}

@@ -316,14 +316,18 @@ class Node:
         # Collision did not happen during RX
         if rx_message is not None:
             in_range = False
+            snr_valid = False
             if rx_message.payload.own_data.src == self.uid:
                 in_range = True
+                snr_valid = True
             if rx_message.is_routed():
                 in_range = self.link_table.get_from_uid(rx_message.payload.own_data.src, self.uid).in_range()
+                snr_valid = self.link_table.get_from_uid(rx_message.payload.own_data.src, self.uid).valid_snr()
             elif rx_message.is_route_discovery():
                 in_range = self.link_table.get_from_uid(rx_message.header.address, self.uid).in_range()
+                snr_valid = self.link_table.get_from_uid(rx_message.header.address, self.uid).valid_snr()
 
-            if in_range:
+            if in_range and snr_valid:
                 packet_for_us = self.handle_rx_msg(rx_message)
 
         return packet_for_us
@@ -604,7 +608,11 @@ class Node:
             l += len(own.data)
         for forwarded in self.forwarded_payloads:
             l += len(forwarded.data)
-        return self.energy_mJ/l
+
+        if l != 0:
+            return self.energy_mJ/l
+        else:
+            return 0
 
     def energy_tx_per_byte(self):
         l = 0
@@ -615,7 +623,10 @@ class Node:
 
         energy = self.time_spent_in[NodeState["STATE_PREAMBLE_TX"].name] * power_of_state(self.settings, NodeState["STATE_PREAMBLE_TX"])
         energy += self.time_spent_in[NodeState["STATE_TX"].name] * power_of_state(self.settings, NodeState["STATE_PREAMBLE_TX"])
-        return energy/l
+        if l != 0:
+            return energy/l
+        else:
+            return 0
 
     def energy_per_state(self):
         ret = {}

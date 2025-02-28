@@ -1,0 +1,122 @@
+% This file was created with tikzplotlib v0.10.1.
+\begin{tikzpicture}
+
+\definecolor{crimson2143940}{RGB}{214,39,40}
+\definecolor{darkgray176}{RGB}{176,176,176}
+\definecolor{darkorange25512714}{RGB}{255,127,14}
+\definecolor{forestgreen4416044}{RGB}{44,160,44}
+\definecolor{steelblue31119180}{RGB}{31,119,180}
+
+\begin{axis}[
+tick align=outside,
+tick pos=left,
+unbounded coords=jump,
+x grid style={darkgray176},
+xlabel={LORA_SF},
+xmin=6.75, xmax=12.25,
+xtick style={color=black},
+y grid style={darkgray176},
+ymin=-0.0228021442495127, ymax=0.478845029239766,
+ytick style={color=black}
+]
+\path [fill=steelblue31119180, fill opacity=0.3]
+(axis cs:7,0.252514152514152)
+--(axis cs:7,0.03)
+--(axis cs:8,0.03125)
+--(axis cs:9,0.0307692307692308)
+--(axis cs:10,0.0288461538461538)
+--(axis cs:11,0.0340909090909091)
+--(axis cs:12,0.0378787878787879)
+--(axis cs:12,0.456042884990253)
+--(axis cs:12,0.456042884990253)
+--(axis cs:11,0.258208458208458)
+--(axis cs:10,0.209569377990431)
+--(axis cs:9,0.332352941176471)
+--(axis cs:8,0.293100233100233)
+--(axis cs:7,0.252514152514152)
+--cycle;
+
+\path [fill=darkorange25512714, fill opacity=0.3]
+(axis cs:7,0.39634324009324)
+--(axis cs:7,0)
+--(axis cs:8,0)
+--(axis cs:9,0)
+--(axis cs:10,0)
+--(axis cs:11,0)
+--(axis cs:12,0)
+--(axis cs:12,0.443636363636364)
+--(axis cs:12,0.443636363636364)
+--(axis cs:11,0.422727272727273)
+--(axis cs:10,0.452473452473452)
+--(axis cs:9,0.347575757575758)
+--(axis cs:8,0.405477855477855)
+--(axis cs:7,0.39634324009324)
+--cycle;
+
+\path [fill=forestgreen4416044, fill opacity=0.3]
+(axis cs:7,0.138888888888889)
+--(axis cs:7,0)
+--(axis cs:8,0)
+--(axis cs:9,0)
+--(axis cs:10,0)
+--(axis cs:11,0)
+--(axis cs:12,0)
+--(axis cs:12,0)
+--(axis cs:12,0)
+--(axis cs:11,0.125)
+--(axis cs:10,0)
+--(axis cs:9,0)
+--(axis cs:8,0)
+--(axis cs:7,0.138888888888889)
+--cycle;
+
+\path [fill=crimson2143940, fill opacity=0.3]
+(axis cs:7,0)
+--(axis cs:7,0)
+--(axis cs:8,0)
+--(axis cs:10,0)
+--(axis cs:11,0)
+--(axis cs:11,0)
+--(axis cs:11,0)
+--(axis cs:10,0)
+--(axis cs:8,0)
+--(axis cs:7,0)
+--cycle;
+
+\addplot [semithick, steelblue31119180]
+table {%
+7 nan
+8 nan
+9 nan
+10 nan
+11 0.142636455184865
+12 0.147990391512252
+};
+\addplot [semithick, darkorange25512714]
+table {%
+7 nan
+8 nan
+9 nan
+10 nan
+11 0.151016192496962
+12 0.154942192590383
+};
+\addplot [semithick, forestgreen4416044]
+table {%
+7 nan
+8 nan
+9 nan
+10 nan
+11 0.0263888888888889
+12 0.0125
+};
+\addplot [semithick, crimson2143940]
+table {%
+7 nan
+8 nan
+10 nan
+11 nan
+};
+\end{axis}
+
+\end{tikzpicture}

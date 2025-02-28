@@ -17,15 +17,16 @@ def random(min_max):
         return rnd.uniform(0, min_max)
 
 
-def merge_data(one, two):
-    dd = defaultdict(list)
+def merge_data(x, y):
+    #dd = defaultdict(list)
 
     # iterate dictionary items
-    dict_items = map(methodcaller('items'), (one, two))
-    for k, v in chain.from_iterable(dict_items):
-        dd[k].extend(v)
+    #dict_items = map(methodcaller('items'), (one, two))
+    #for k, v in chain.from_iterable(dict_items):
+    #    dd[k].extend(v)
 
-    return dd
+    #return dd
+    return { key:x.get(key,[])+y.get(key,[]) for key in set(list(x.keys())+list(y.keys())) }
 
 
 def data_to_df(data_list):

@@ -20,7 +20,7 @@ class LinkTable:
                         self.network.add_node(node1.uid, name="{:02d}".format(node1.uid), pos=(node1.position.x+50, node1.position.y+100))
                         self.network.add_node(node2.uid, name="{:02d}".format(node2.uid), pos=(node2.position.x+50, node2.position.y+100))
                         if _link_table[node2.uid].in_range():
-                            w = 1 + _link_table[node2.uid].rss() - self.settings.LORA_SENSITIVITY
+                            w = 1 + _link_table[node2.uid].rss() - self.settings.LORA_SENSITIVITY[self.settings.LORA_SF]
                             self.network.add_edge(node1.uid, node2.uid, weight=w)
             self.link_table[node1.uid] = _link_table
 
@@ -100,6 +100,7 @@ class Link:
 
         self._rss = 0
         self._snr = 0
+        self._valid_snr = False
         self._distance = 0
         self._in_range = False
 
@@ -129,15 +130,21 @@ class Link:
             return 95.52 + 2.03 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
 
     def snr(self):
-        self._snr = self.rss() + 116.86714407 # thermal noise for 25°C 500kHz BW
+        #self._snr = self.rss() - -174 + 10 * np.log10(125e3)) # SNR = RSS - NOISE FLOOR
+        self._snr = self.rss() + 174 - 10 * np.log10(self.settings.LORA_BANDWIDTH * 1e3) # thermal noise for 25°C 500kHz BW
         return self._snr
 
     def in_range(self):
-        self._in_range = self.rss() > self.settings.LORA_SENSITIVITY
+        self._in_range = self.rss() > self.settings.LORA_SENSITIVITY[self.settings.LORA_SF]+4
         return self._in_range
 
+    def valid_snr(self):
+        self._valid_snr = self.snr() > self.settings.SNR_MIN_REQUIRED[self.settings.LORA_SF]
+        return self._valid_snr
+
     def lqi(self):
-        return self.settings.SNR_MAX - self.snr()
+        snr_limit = self.settings.SNR_MIN_REQUIRED[self.settings.LORA_SF] + self.settings.SNR_MARGIN
+        return max(0, snr_limit - self.snr())
 
     def use(self):
         self.used += 1
