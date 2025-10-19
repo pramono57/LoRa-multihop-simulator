@@ -2,7 +2,6 @@ from multihop.Network import *
 import matplotlib.pyplot as plt
 
 from multihop.Network import *
-import matplotlib.pyplot as plt
 import random
 import logging
 from multihop.preambles import preambles

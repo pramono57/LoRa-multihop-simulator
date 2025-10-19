@@ -58,7 +58,7 @@ if __name__ == "__main__":
     random.seed(5555)
     np.random.seed(5555)
     network = Network()
-    network.plot_network()
+    # network.plot_network()
     map = network.get_node_map()
 
     pdr = {}

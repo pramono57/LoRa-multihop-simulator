@@ -61,6 +61,7 @@ class Route:
         return self.neighbour_list[worst_i]
 
     def find_best(self, exclude=[]):
+        print('\nRoute -> find_best')
         if len(self.neighbour_list) > 0:
             best_i = 0
             for i, neighbour in enumerate(self.neighbour_list):

@@ -33,7 +33,7 @@ ENVIRONMENT: "urban"
 PREAMBLE_DURATION_S: {{ PREAMBLE_DURATION_S }}
 
 # LINK CHARACTERISTICS
-SHADOWING_ENABLED: False
+SHADOWING_ENABLED: True
 SHADOWING_MU: 0
 SHADOWING_SIGMA: 11.25
 # https://www.thethingsnetwork.org/docs/lorawan/rssi-and-snr/ with margin

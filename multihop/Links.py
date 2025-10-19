@@ -37,7 +37,12 @@ class LinkTable:
         return self.link_table.get(node1_uid).get(node2_uid)
 
     def get_all_pairs_shortest_path(self):
-        return list(nx.all_pairs_shortest_path(self.network))
+        print('\nLinkTable -> get_all_pairs_shortest_path')
+        paths = list(nx.all_pairs_shortest_path(self.network))
+        for path in paths:
+            print(f'path: {path}')
+        # print(paths)
+        return paths
 
     def plot(self, nw=None, w=16):
         import matplotlib as mpl
@@ -72,6 +77,7 @@ class LinkTable:
         plt.axis('on')
         ax.tick_params(left=True, bottom=True, labelleft=True, labelbottom=True)
         ax.axis('equal')
+        matplotlib.use('TkAgg')
         plt.show(block=False)
 
     def plot_usage(self):
@@ -107,6 +113,8 @@ class Link:
 
     def rss(self):
         self._rss = self.settings.LORA_TRANSMIT_POWER - self.path_loss()
+        print('\nLink -> rss')
+        print(f'RSS: {self._rss}')
         return self._rss
 
     def distance(self):
@@ -114,7 +122,6 @@ class Link:
             self.node1.position.y - self.node2.position.y) ** 2)
         if d == 0:  # For when two nodes practically are at the same position
             d = 0.00001
-        self._distance = d
         return d
 
     def path_loss(self):
@@ -123,15 +130,26 @@ class Link:
             shadowing = self._shadowing
 
         if self.settings.ENVIRONMENT.lower() == "urban":
-            return 74.85 + 2.75 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
+            path_loss = 74.85 + 2.75 * 10 * np.log10(self.distance()) + shadowing
+            print('\nLink -> path_loss')
+            print(f'Path loss: {path_loss}')
+            return path_loss  # shadowing per link
         elif self.settings.ENVIRONMENT.lower() == "coast":
-            return 42.96 + 3.62 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
+            path_loss = 42.96 + 3.62 * 10 * np.log10(self.distance()) + shadowing
+            print('\nLink -> path_loss')
+            print(f'Path loss: {path_loss}')
+            return path_loss  # shadowing per link
         elif self.settings.ENVIRONMENT.lower() == "forest":
-            return 95.52 + 2.03 * 10 * np.log10(self.distance()) + shadowing  # shadowing per link
+            path_loss = 95.52 + 2.03 * 10 * np.log10(self.distance()) + shadowing
+            print('\nLink -> path_loss')
+            print(f'Path loss: {path_loss}')
+            return path_loss  # shadowing per link
 
     def snr(self):
         #self._snr = self.rss() - -174 + 10 * np.log10(125e3)) # SNR = RSS - NOISE FLOOR
         self._snr = self.rss() + 174 - 10 * np.log10(self.settings.LORA_BANDWIDTH * 1e3) # thermal noise for 25°C 500kHz BW
+        print('\nLink -> snr')
+        print(f'SNR: {self._snr}')
         return self._snr
 
     def in_range(self):

@@ -161,9 +161,12 @@ class Node:
         self.tx_aggregation_timer = TxTimer(self.env, self.settings, TimerType.AGGREGATION)
         self.sense_timer = TxTimer(self.env, self.settings, TimerType.SENSE)
 
+        # print(f'tx_collision_timer: {self.tx_collision_timer}, tx_route_discovery_timer: {self.tx_route_discovery_timer}, tx_aggregation_timer: {self.tx_aggregation_timer}, sense_timer: {self.sense_timer}')
+
     def run(self):
         random_wait = np.random.uniform(0, self.settings.MAX_DELAY_START_PER_NODE_RANDOM_S)
         yield self.env.timeout(random_wait)
+        print('\nNode -> run')
         logging.info(f"{self.uid}\tStarting node {self.uid}")
 
         self.timers_setup()  # Reset timers
@@ -182,6 +185,7 @@ class Node:
                 (self.sense_timer.is_expired() and self.env.now < self.sense_until):
             self.state_change(NodeState.STATE_SENSING)
             yield self.env.timeout(self.settings.MEASURE_DURATION_S)
+            print('\nNode -> check_sensing')
             # schedule timer for transmit
             logging.info(f"{self.uid}\tSensing")
             self.tx_aggregation_timer.start(restart=False)
@@ -194,6 +198,7 @@ class Node:
             self.application_counter = (self.application_counter + 1) % 65535
 
     def check_transmit(self):
+        print('\nNode -> check_transmit')
         # Route discovery messages are sent separately
         if self.type == NodeType.GATEWAY:
             if self.tx_route_discovery_timer.is_expired():
@@ -217,12 +222,14 @@ class Node:
                 self.tx_aggregation_timer.reset()
 
     def postpone_pending_tx(self):
+        print('\nNode -> postpone_pending_tx')
         # If cad happened before when we should be tx'en, postpone using collision timer
         if self.tx_collision_timer.is_expired() or self.tx_aggregation_timer.is_expired():
             self.tx_collision_timer.start(restart=True)  # Postpone using collision timer
             self.tx_aggregation_timer.reset()  # Reset aggregation timer to stop premature sending
 
     def periodic_wakeup(self):
+        print('\nNode -> periodic_wakeup')
         while True:
             self.state_change(NodeState.STATE_SLEEP)
             cad_interval = self.settings.CAD_INTERVAL + random(self.settings.CAD_INTERVAL_RANDOM_S)
@@ -245,6 +252,7 @@ class Node:
 
         :return:
         """
+        print('\nNode -> receiving')
         packet_for_us = False
         self.state_change(NodeState.STATE_RX)
 
@@ -305,6 +313,8 @@ class Node:
                             toa = node.message_in_tx.time()
                             earliest_done = node.done_tx - toa / 10
 
+                            print(f'ToA: {toa}')
+
                     # Decide which "wait" to take: lowest value, but at least 1ms
                     wait = max(0.001, min(wait, earliest_done - self.env.now))
 
@@ -312,6 +322,7 @@ class Node:
                 current_active_nodes = self.get_nodes_in_state([NodeState.STATE_PREAMBLE_TX, NodeState.STATE_TX])
             else:
                 break
+            print(f'Loudest node: {loudest_node}, Active nodes: {current_active_nodes}')
 
         # Collision did not happen during RX
         if rx_message is not None:
@@ -385,6 +396,7 @@ class Node:
             yield self.env.timeout(self.settings.PREAMBLE_DURATION_S)
 
             self.state_change(NodeState.STATE_TX)
+            print('\nNode -> tx')
             logging.info(
                 f"{self.uid}\t Sending packet {self.message_in_tx.header.uid} with size: {self.message_in_tx.size()} bytes")
             logging.info(f"{self.uid}\tTx packet to {self.message_in_tx.header.address} {self.message_in_tx}")
@@ -460,6 +472,8 @@ class Node:
                 cad_detected = True
                 break
         yield self.env.timeout(self.settings.TIME_CAD_PROC_S)
+        print('\nNode -> cad')
+        print(f'CAD: {cad_detected}')
         return cad_detected
 
     def full_buffer(self):
@@ -470,13 +484,16 @@ class Node:
         return size > self.settings.MAX_BUF_SIZE_BYTE*self.settings.MAX_BUF_SIZE_THRESHOLD
 
     def get_nodes_in_state(self, states):
+        print('\nNode -> get_nodes_in_state')
         nodes = []
         for n in self.nodes:
             if n is not self and n.state in states:
                 nodes.append(n)
+                # print(f'node_state: {n.state}')
         return nodes
 
     def check_and_handle_collisions(self, active_nodes):
+        print('\nNode -> check_and_handle_collisions')
         active_node = active_nodes[0]
         if len(active_nodes) > 1:
             # If power higher than power_threshold for all tx nodes, this one will succeed
@@ -504,17 +521,21 @@ class Node:
                         node.message_in_tx.handle_collision()
                         self.collisions.append(self.env.now)
 
+        print(f'Active node: {active_node}')
         return active_node
 
     def collided(self, pl):
+        print('\nNode -> collided')
         # Callback for packets that were sent by me and have collided
         self.own_payloads_collided.append(pl)
+        print(f'Collided payloads: {self.own_payloads_collided}')
 
     def handle_rx_msg(self, rx_packet):
         packet_for_us = False
         update_beacon = False
 
         # Check for routing in all received route discovery messages
+        print('\nNode -> handle_rx_msg')
         if rx_packet.is_route_discovery():
             # TODO: quick and dirty fix, make better and why is this needed?
             if self.link_table.get_from_uid(self.uid,
@@ -575,18 +596,30 @@ class Node:
         else:
             self.own_payloads_arrived_at_gateway.append(payload)
 
+        print('\nNode -> arrived_at_gateway')
+        print(f'Payloads arrived at gateway: {self.own_payloads_arrived_at_gateway}')
+
+
     def pdr(self):
         if len(self.own_payloads_sent) > 0:
             self._pdr = len(self.own_payloads_arrived_at_gateway) / len(self.own_payloads_sent)
         else:
             self._pdr = 1
+
+        print('\nNode -> pdr')
+        print(f'Packet Delivery Ratio (PDR): {self._pdr}')
         return self._pdr
+
+
 
     def plr(self):
         if len(self.own_payloads_sent) > 0:
             self._plr = len(self.own_payloads_collided) / len(self.own_payloads_sent)
         else:
             self._plr = 0
+
+        print('\nNode -> plr')
+        print(f'Packet Loss Ratio (PLR): {self._pdr}')
         return self._plr
 
     def aggregation_efficiency(self):

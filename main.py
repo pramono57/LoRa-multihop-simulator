@@ -9,19 +9,25 @@ import multihop.utils
 
 random.seed(5555)
 np.random.seed(19680801)
-logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.DEBUG)
+
+print(f"SF: {settings.LORA_SF}, BW: {settings.LORA_BANDWIDTH} kHz")
+print(f"Transmit Power Index: {settings.LORA_TRANSMIT_POWER}")
+print(f"Power consumption (mW): TX={settings.POWER_TX_mW}, RX={settings.POWER_RX_mW}, Sleep={settings.POWER_SLEEP_mW}")
 
 network = Network(shape="circles", size_x=100, size_y=100, n_x=3, n_y=20)
 # network = Network(shape="funnel", size_x=100, size_y=0, levels=[1, 4, 2])
 # network.nodes[6].position = Position(79, 38)
 # network.nodes[7].position = Position(62, 66)
 # network.update()
-network.plot_network()
+# network.plot_network()
+
+
 
 filename = "results/simulate_funnel_size_aggregation_timer.csv"
 
 setting = "TX_AGGREGATION_TIMER_NOMINAL"
-values = range(1*60, 2*60, 2*60)
+values = range(1*60, 10*60, 1*60)
 
 sizes = range(1, 10, 1)
 
@@ -35,8 +41,8 @@ for value in values:
 
     for size in sizes:
         network = Network(shape="funnel", size_x=100, size_y=0, levels=[1, 1, size])
-        network.plot_network()
-        network.run(60*30)
+        # network.plot_network()
+        network.run()
 
         if value not in pdr:
             pdr[value] = {}
@@ -44,10 +50,10 @@ for value in values:
             aggregation_efficiency[value] = {}
             energy[value] = {}
 
-        pdr[value][size] = network.hops_statistic("pdr")
-        plr[value][size] = network.hops_statistic("plr")
-        aggregation_efficiency[value][size] = network.hops_statistic("aggregation_efficiency")
-        energy[value][size] = network.hops_statistic("energy")
+        pdr[value][size] = network.statistic(0, "pdr")
+        plr[value][size] = network.statistic(0, "plr")
+        aggregation_efficiency[value][size] = network.statistic(0, "aggregation_efficiency")
+        energy[value][size] = network.statistic(0, "energy")
 
 
 df = pd.DataFrame(flatten_data(2,
@@ -55,7 +61,7 @@ df = pd.DataFrame(flatten_data(2,
                                [setting, "size", "hops", ["pdr", "plr", "aggregation_efficiency", "energy"]]))
 
 # Only interested in the middle node
-df = df[df.hops == 0]
+# df = df[df.hops == 0]
 df.to_csv(filename)
 
 fig, ax = plt.subplots()
@@ -66,8 +72,5 @@ for key, grp in df.groupby([setting]):
 
     data.plot(ax=ax, x='size', y='mean', label=key)
     #plt.fill_between(x='size', y1='low', y2='high', alpha=0.3, data=data)
-
-plt.show()
-test = "test"
 
 plt.show()

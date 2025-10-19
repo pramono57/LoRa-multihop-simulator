@@ -21,9 +21,9 @@ from datetime import datetime
 import dill as dill
 import json
 
-
 class Network:
     def __init__(self, **kwargs):
+        print('\nNetwork -> init')
         self.nodes = []
         self.simpy_env = simpy.Environment()
         self.link_table = None
@@ -39,7 +39,7 @@ class Network:
 
         self.settings["network"] = kwargs
 
-        # Copy network
+    # Copy network
         nw = kwargs.get("network", None)
         map = kwargs.get("map", None)
         if nw is not None:
@@ -289,18 +289,22 @@ class Network:
         self.update()
 
     def get_node_map(self):
+        print('\nNetwork -> get_node_map')
         map = {}
         for node in self.nodes:
+            print(f'uid: {node.uid}, x: {node.position.x}, y: {node.position.y}, type: {node.type}')
             map[node.uid] = {"x": node.position.x, "y": node.position.y, "uid": node.uid, "type": node.type}
         return map
 
     def update(self):
+        print('\nNetwork -> update')
         self.link_table = LinkTable(self.settings, self.nodes)
         for node in self.nodes:
             if type(node) is Node:
                 node.add_meta(self.settings, self.nodes, self.link_table)
 
     def add_sensor_node(self, uid, x, y):
+        print('\nNetwork -> add_sensor_node')
         self.nodes.append(Node(self.simpy_env, uid,
                                Position(x, y),
                                NodeType.SENSOR))
@@ -326,6 +330,8 @@ class Network:
 
                         return True
 
+                    print(f'Node: {node1.uid, node2.uid}, Distance: {d}')
+
     def rerun(self, time):
         self.simpy_env = simpy.Environment()
         for node in self.nodes:
@@ -333,6 +339,8 @@ class Network:
         self.run(time)
 
     def run(self):
+        print('Network -> run')
+
         time = self.settings.SIMULATION_RUN_TIME
 
         # First get max hop count in total network to establish how long the simulation should be extended
@@ -342,6 +350,8 @@ class Network:
             hops = len(max(path[1].values(), key=len))
             if hops > max_hops:
                 max_hops = hops
+
+            print(f'hops: {hops}, max_hops: {max_hops}')
 
         # Extend simulation time
         simulation_time = time + (max_hops * (self.settings.TX_AGGREGATION_TIMER_NOMINAL
@@ -372,6 +382,7 @@ class Network:
         return Network(network=self, settings=copy.deepcopy(self.settings))
 
     def plot_network(self):
+        print('Network -> plot_network')
         self.link_table.plot()
 
     def plot_network_usage(self):
@@ -394,10 +405,12 @@ class Network:
         plt.show(block=False)
 
     def statistic(self, stat0, stat, **kwargs):
+        print('Network -> statistic')
         method = methodcaller(stat)
 
         data = {}
         for node in self.nodes:
+            print(f'type: {node.type}')
             if node.type == NodeType.SENSOR:
                 if node.route is not None:
                     hops = 0  # hops is legacy name and is used for stat0
@@ -504,7 +517,10 @@ class Network:
                 payloads_sent += len(node.own_payloads_sent)
                 payloads_received += len(node.own_payloads_arrived_at_gateway)
 
-        return payloads_received / payloads_sent
+        pdr = payloads_received / payloads_sent
+        print('\nNetwork -> pdr')
+        print(f'Packet Delivery Ratio (PDR): {pdr}')
+        return pdr
 
     def plot_aggregation_timer_values(self, v):
         import matplotlib.pyplot as plt
